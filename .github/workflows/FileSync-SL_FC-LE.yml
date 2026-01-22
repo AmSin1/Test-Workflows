@@ -182,10 +182,10 @@ jobs:
                 local src_path="$dir/$src"
                 [ ! -f "$src_path" ] && continue
 
-                awk -v src_name="$src" -v tracker="$TRACKER" -v idx="$block_index" ' # start of awk logic string for deduplication, custom spacing and formatting
+                awk -v src_name="$src" -v tracker="$TRACKER" -v idx="$block_index" '
 
                   # sub-module: deduplication
-                  BEGIN { count=0; tag_buf=""; file_buf=""; found_stream=0 } # ignore everything till found_stream tuens 1, then start processing everything
+                  BEGIN { count=0; tag_buf=""; file_buf=""; found_stream=0 }
                   /^#EXTINF/ { found_stream=1 } # found_stream: 1 when the first #EXTINF line in the input playlist is found
                   {
                     if (found_stream == 0) next; # discard all lines before first #EXTINF is found, process everything thereon
