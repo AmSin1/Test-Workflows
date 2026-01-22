@@ -131,9 +131,9 @@ jobs:
             shift 2
             local sources=("$@")
             
-            echo "---------------------------------------------------------------------"
+            echo "--------------------------------------------------------------------------"
             echo "PROCESS START: Creation of merged playlist $output in folder $dir"
-            echo "---------------------------------------------------------------------"
+            echo "--------------------------------------------------------------------------"
 
             # Sub-step A: Clean input playlists - remove carriage returns and BOMs
             echo "DEBUG: Starting cleaning of input playlists for merged playlist $output..."
@@ -145,7 +145,7 @@ jobs:
               if (set -e; [ -f "$src_path" ] && sed -i '1s/^\xef\xbb\xbf//; s/\r//g' "$src_path"); then # strips Windows line endings (\r) and any non-standard character markers
                 successful_san_count=$((successful_san_count + 1))
                 local file_size=$(stat -c%s "$src_path") # file size in bytes of the cleaned input playlist
-                local extinf_count=$(grep -c "#EXTINF" "$src_path" || echo 0) # count of #EXTINF lines present in the cleaned input playlist
+                local extinf_count=$(grep -c "#EXTINF" "$src_path" || true) # count of #EXTINF lines present in the cleaned input playlist
                 cleaned_details+="\n  - $src: $file_size bytes, $extinf_count #EXTINF lines"  # for appending to the summary list for the group-level debug echo
                 echo "DEBUG: Cleaned input playlist $src (size: $file_size bytes). $extinf_count EXTINF lines found." # debug for cleaning step for individual input playlists
               else
@@ -230,7 +230,7 @@ jobs:
             if [ $? -eq 0 ]; then
               local final_path="$dir/$output"
               local final_size=$(stat -c%s "$final_path")
-              local final_extinf=$(grep -c "#EXTINF" "$final_path" || echo 0)
+              local final_extinf=$(grep -c "#EXTINF" "$final_path" || true)
               echo "RESULT: Merge process for $output COMPLETED successfully. $output ($final_size bytes) is ready to push. $final_extinf EXTINF lines present." # debug at the end of merge process
               return 0
             else
