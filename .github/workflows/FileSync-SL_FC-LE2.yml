@@ -66,41 +66,87 @@ jobs:
           mkdir -p destination-branch/${{ env.DESTINATION_DIR1_PATH }} # creates destination directory if it doesn't already exist
           mkdir -p destination-branch/${{ env.DESTINATION_DIR2_PATH }} # creates destination directory if it doesn't already exist
 
+          PLAYLISTS=( # defines the list of playlists to process in a pipe-separated array (URL|DIR|FILE)
+            "${{ env.SOURCE_PLAYLIST1a_URL }}|${{ env.DESTINATION_DIR1_PATH }}|sl-le-1.m3u"
+            "${{ env.SOURCE_PLAYLIST1b_URL }}|${{ env.DESTINATION_DIR1_PATH }}|sl-le-2.m3u"
+            "${{ env.SOURCE_PLAYLIST1c_URL }}|${{ env.DESTINATION_DIR1_PATH }}|sl-le-3.m3u"
+            "${{ env.SOURCE_PLAYLIST2a_URL }}|${{ env.DESTINATION_DIR2_PATH }}|fc-le-1.m3u"
+            "${{ env.SOURCE_PLAYLIST2b_URL }}|${{ env.DESTINATION_DIR2_PATH }}|fc-le-2.m3u"
+            "${{ env.SOURCE_PLAYLIST2c_URL }}|${{ env.DESTINATION_DIR2_PATH }}|fc-le-3.m3u"
+            "${{ env.SOURCE_PLAYLIST2d_URL }}|${{ env.DESTINATION_DIR2_PATH }}|fc-le-4.m3u"
+          )
+
           # Optional Curl Configuration in next line:
           CURL_FLAGS="--retry 3 --retry-delay 1 --max-time 6" # retry up to x times; delay of exactly x seconds between retries; total time for initial attempt + retries capped at x seconds
-          curl $CURL_FLAGS -L --fail -o "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-1.m3u" "${{ env.SOURCE_PLAYLIST1a_URL }}" || true # 'true' here is the file-level 'continue-on-error: true' flag to prevent exiting run even if a playlist download fails
-          [ -f "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-1.m3u" ] && [ $(date -r "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-1.m3u" +%s) -ge $START_TIME ] && echo "sl-le-1.m3u download : success. $(grep -c '#EXTINF' destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-1.m3u) EXTINF lines present." || echo "sl-le-1.m3u download : failed"       
-          curl $CURL_FLAGS -L --fail -o "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-2.m3u" "${{ env.SOURCE_PLAYLIST1b_URL }}" || true
-          [ -f "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-2.m3u" ] && [ $(date -r "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-2.m3u" +%s) -ge $START_TIME ] && echo "sl-le-2.m3u download : success. $(grep -c '#EXTINF' destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-2.m3u) EXTINF lines present." || echo "sl-le-2.m3u download : failed"        
-          curl $CURL_FLAGS -L --fail -o "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-3.m3u" "${{ env.SOURCE_PLAYLIST1c_URL }}" || true
-          [ -f "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-3.m3u" ] && [ $(date -r "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-3.m3u" +%s) -ge $START_TIME ] && echo "sl-le-3.m3u download : success. $(grep -c '#EXTINF' destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-3.m3u) EXTINF lines present." || echo "sl-le-3.m3u download : failed"
-
-          curl $CURL_FLAGS -L --fail -o "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-1.m3u" "${{ env.SOURCE_PLAYLIST2a_URL }}" || true
-          [ -f "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-1.m3u" ] && [ $(date -r "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-1.m3u" +%s) -ge $START_TIME ] && echo "fc-le-1.m3u download : success. $(grep -c '#EXTINF' destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-1.m3u) EXTINF lines present." || echo "fc-le-1.m3u download : failed"
-          curl $CURL_FLAGS -L --fail -o "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-2.m3u" "${{ env.SOURCE_PLAYLIST2b_URL }}" || true
-          [ -f "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-2.m3u" ] && [ $(date -r "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-2.m3u" +%s) -ge $START_TIME ] && echo "fc-le-2.m3u download : success. $(grep -c '#EXTINF' destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-2.m3u) EXTINF lines present." || echo "fc-le-2.m3u download : failed"
-          curl $CURL_FLAGS -L --fail -o "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-3.m3u" "${{ env.SOURCE_PLAYLIST2c_URL }}" || true
-          [ -f "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-3.m3u" ] && [ $(date -r "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-3.m3u" +%s) -ge $START_TIME ] && echo "fc-le-3.m3u download : success. $(grep -c '#EXTINF' destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-3.m3u) EXTINF lines present." || echo "fc-le-3.m3u download : failed"
-          curl $CURL_FLAGS -L --fail -o "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-4.m3u" "${{ env.SOURCE_PLAYLIST2d_URL }}" || true
-          [ -f "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-4.m3u" ] && [ $(date -r "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-4.m3u" +%s) -ge $START_TIME ] && echo "fc-le-4.m3u download : success. $(grep -c '#EXTINF' destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-4.m3u) EXTINF lines present." || echo "fc-le-4.m3u download : failed"
-
+          for entry in "${PLAYLISTS[@]}"; do # iterates through the playlists array
+            IFS="|" read -r URL DIR FILE <<< "$entry" # extracts data from the playlist array string using IFS pipe separator
+            TARGET="destination-branch/$DIR/$FILE" # file path for each playlist download
+            curl $CURL_FLAGS -L --fail -o "$TARGET" "$URL" || true # 'true' here is the file-level 'continue-on-error: true' flag to ensures that the loop continues even if one download fails
+  
+            if [ -f "$TARGET" ] && [ $(date -r "$TARGET" +%s) -ge $START_TIME ]; then # checks if playlist exists AND was actually updated/created during this specific workflow run            
+              SIZE=$(stat -c%s "$TARGET")  # calculates file size of such playlist
+              COUNT=$(grep -c '#EXTINF' "$TARGET" || true) # counts number of #EXTINF lines in such playlist
+              echo "$FILE download : SUCCESS. File size $SIZE bytes. $COUNT #EXTINF lines present."
+            else
+              echo "$FILE download : FAILED"
+            fi
+          done
+          
           rm -f *.tmp *.temp temp_* # cleans up temporary work files
       
-      - name: Commit Changes and push to Destination Branch
+      - name: Commit Changes and Push to Destination Branch
         run: |
           cd destination-branch # changes current working directory to the destination branch
           git config url.https://${{ secrets.PAT_FG_SYNC }}@github.com/.insteadOf https://github.com/ # configure git
           git config user.name "github-actions[bot]" # configure git
-          git config user.email "github-actions[bot]@users.noreply.github.com" # configure git         
+          git config user.email "github-actions[bot]@users.noreply.github.com" # configure git    
+
+          FILES=( # defines the list of playlists for analysis
+            "${{ env.DESTINATION_DIR1_PATH }}/sl-le-1.m3u"
+            "${{ env.DESTINATION_DIR1_PATH }}/sl-le-2.m3u"
+            "${{ env.DESTINATION_DIR1_PATH }}/sl-le-3.m3u"
+            "${{ env.DESTINATION_DIR2_PATH }}/fc-le-1.m3u"
+            "${{ env.DESTINATION_DIR2_PATH }}/fc-le-2.m3u"
+            "${{ env.DESTINATION_DIR2_PATH }}/fc-le-3.m3u"
+            "${{ env.DESTINATION_DIR2_PATH }}/fc-le-4.m3u"
+          )
+          COMMITTED_NAMES="" # initializes tracking variables for the final summary echos
+          COMMITTED_COUNT=0
+          SKIPPED_NAMES=""
+          SKIPPED_COUNT=0
+          SUMMARY_DETAILS=""
+          
+          for FILE in "${FILES[@]}"; do
+            FILE_NAME=$(basename "$FILE")
+            if [ -f "$FILE" ]; then
+              if git diff --quiet "$FILE" && git status --porcelain "$FILE" | grep -qv "^??"; then # compares playlists against the repository index   
+                SKIPPED_NAMES+="$FILE_NAME " # file is identical to the one in the repo and will not be committed; adds to skipped list
+                SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+              else
+                COMMITTED_NAMES+="$FILE_NAME " # file is changed or new and will be committed; adds to committed list and gathers metrics
+                COMMITTED_COUNT=$((COMMITTED_COUNT + 1))
+                SIZE=$(stat -c%s "$FILE") 
+                EXTINF=$(grep -c '#EXTINF' "$FILE" || true)
+                SUMMARY_DETAILS+="\n  - $FILE_NAME: $SIZE bytes, $EXTINF #EXTINF lines"
+              fi
+            fi
+          done
+          
           git add . # stages all changes in the current directory 
           if git diff --cached --quiet; then # checks if there are any changes
-            echo "No changes found to commit"
+            echo "RESULT: No changes found to commit in any playlists"
           else
             git commit -m "Automated sync from source" # only commits if a binary or text difference exists, alongwith commit message
             # git pull origin ${{ env.DESTINATION_BRANCH }} --rebase # rebases pull to ensure local is ahead of remote (enable if facing commit/push failures)
             git push origin ${{ env.DESTINATION_BRANCH }} # pushes to the destination branch
+            echo "------------------------------------------------------------------------------------------------------"
+            echo "RESULT: Commits were made to ($COMMITTED_COUNT) playlists : $COMMITTED_NAMES"
+            echo -e "Detailed Info: $SUMMARY_DETAILS"
           fi
-
+          echo "------------------------------------------------------------------------------------------------------"
+          echo "RESULT: $SKIPPED_COUNT playlists were skipped and remain unchanged : $SKIPPED_NAMES"
+          echo "------------------------------------------------------------------------------------------------------"
+          
 
   
   create_merged_playlist: # creates a custom-formatted deduplicated merged playlist with prioritized m3u comtent-blocks from already copied source playlists
