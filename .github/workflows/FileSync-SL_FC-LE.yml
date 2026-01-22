@@ -1,0 +1,282 @@
+# This workflow is configired to be trigerred manually from GitHUb WebUI or by an external cronjob scheduler service
+# This GitHub Action has 3 jobs:
+# 1) copies specified playlists from source repo and overwrites corresponding specified playlists in destination branch/directory in destination repo
+# 2) creates a custom-formatted deduplicated merged playlist with prioritized m3u comtent-blocks from already copied source playlists
+# 3) echos the input message identifying source of workflow trigger (manual via WebUI or automated external cronjob service)
+# Works for copying from any branch of a public source repo into any branch of a public/private destination repo
+# The .yml file may be placed in any 3rd public/private repo (non-source, non-destination)(say, control repo) in its default (i.e. main) branch at the 'github/workflows/' directory
+# Need to use Personal Access Token (PAT) for commiting and pushing to destination repo - create a PAT Classic (with workflow permissions) or PAT Fine-grained (with actions(R/W), contents(code)(R/W), pull requests(R/W) and workflows(R/W) permissions)
+# Store PAT Classic or PAT Fine-grained token's value in the control repo's secrets with names PAT_CL_SYNC or PAT_FG_SYNC
+
+name: FileSync SL&FC LE
+
+on: 
+  workflow_dispatch: # allows manual workflow run from the Actions tab (workflow must be in default branch to work)
+    inputs: # optional input(s) that the cronjob service can pass on to the workflow
+      message:
+        description: 'source trigger of the workflow run'
+        required: true
+        default: 'manual GitHub WebUI trigger' # default message to be printed if workflow is triggered manually via WebUI or if there is no input message alongside a trigger by cronjob service
+        type: string # optionally, specifies type of message
+  # internal scehduled run parameters in the 2 lines below 'commented out' as external cronjob scheduler service is engaged
+  # schedule: # scheduled to run at designated times or every x minutes (minimum interval allowed is 5 minutes)
+    # - cron: '*/22 * * * *'  
+      
+env:
+  CRONJOB_SERVICE: "FastCron"
+  DESTINATION_REPO_URL: "https://github.com/AmSin1/Repo.git"
+  DESTINATION_REPO: "AmSin1/Repo"
+  DESTINATION_BRANCH: "autocopied"
+  DESTINATION_DIR1_PATH: "sl-le"
+  MERGED_PLAYLIST1: "sl-le-all.m3u"
+  SOURCE_PLAYLIST1a_URL: "https://github.com/doctor-8trange/zyphora/raw/main/data/sony.m3u" # source updated and working
+  SOURCE_PLAYLIST1b_URL: "https://github.com/drmlive/sliv-live-events/raw/main/sonyliv.m3u" # sporce updated and working
+  SOURCE_PLAYLIST1c_URL: "https://github.com/abusaeeidx/SonyLiv-Event-Auto-update/raw/main/sonyliv.m3u" # source NOT updated
+  SOURCE_PLAYLIST1d_URL:
+  DESTINATION_DIR2_PATH: "fc-le"
+  MERGED_PLAYLIST2: "fc-le-all.m3u"
+  SOURCE_PLAYLIST2a_URL: "https://github.com/jitendra-unatti/fancode/raw/main/data/fancode.m3u" # source updated and working
+  SOURCE_PLAYLIST2b_URL: "https://github.com/drmlive/fancode-live-events/raw/main/fancode.m3u" # source updated and working
+  SOURCE_PLAYLIST2c_URL: "https://github.com/IPTVFlixBD/Fancode-BD/raw/main/playlist.m3u"
+  SOURCE_PLAYLIST2d_URL: "https://github.com/abusaeeidx/CrestSport-IPTV-Collection/raw/main/fncbd.m3u"
+  SOURCE_PLAYLIST2e_URL:
+
+concurrency: # ensures that only one GitHub workflow runs at a time for a specific branch in a repo, prevents conditions where two separate workflow runs attempt to push to same branch simultaneously
+  group: sync-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: false # 'false' ensures that a newly-started workflow runs sequentially after and does not terminate a still in-progress workflow run, ensuring that every workflow's changes are eventually pushed
+
+jobs:   
+  copy_source_playlists: # copies specified playlists from source repo and overwrites corresponding specified playlists in destination branch/directory in destination repo
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # grants permissions for the job to write to contents
+    steps:
+      - name: Checkout Destination Branch in Destination Repo
+        uses: actions/checkout@v4
+        with:
+          repository: '${{ env.DESTINATION_REPO }}' # specify 'owner/repo' of the destination repo
+          ref: ${{ env.DESTINATION_BRANCH }}  # set the destination branch to checkout
+          fetch-depth: 0 # get full history to allow rebasing (recommended for every job that needs to commit and push back)
+          persist-credentials: false # REQUIRED if upstream repo is private (see wiki)
+          path: 'destination-branch'
+
+      - name: Download Playlists from Source Repos  
+        run: |
+          START_TIME=$(date +%s) # records the start time of this run in seconds (for comparison)
+          mkdir -p destination-branch/${{ env.DESTINATION_DIR1_PATH }} # creates destination directory if it doesn't already exist
+          mkdir -p destination-branch/${{ env.DESTINATION_DIR2_PATH }} # creates destination directory if it doesn't already exist
+
+          # Optional Curl Configuration in next line:
+          CURL_FLAGS="--retry 3 --retry-delay 1 --max-time 6" # retry up to x times; delay of exactly x seconds between retries; total time for initial attempt + retries capped at x seconds
+          curl $CURL_FLAGS -L --fail -o "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-1.m3u" "${{ env.SOURCE_PLAYLIST1a_URL }}" || true # 'true' here is the file-level 'continue-on-error: true' flag to prevent exiting run even if a playlist download fails
+          [ -f "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-1.m3u" ] && [ $(date -r "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-1.m3u" +%s) -ge $START_TIME ] && echo "sl-le-1.m3u download : success. $(grep -c '#EXTINF' destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-1.m3u) EXTINF lines present." || echo "sl-le-1.m3u download : failed"       
+          curl $CURL_FLAGS -L --fail -o "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-2.m3u" "${{ env.SOURCE_PLAYLIST1b_URL }}" || true
+          [ -f "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-2.m3u" ] && [ $(date -r "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-2.m3u" +%s) -ge $START_TIME ] && echo "sl-le-2.m3u download : success. $(grep -c '#EXTINF' destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-2.m3u) EXTINF lines present." || echo "sl-le-2.m3u download : failed"        
+          curl $CURL_FLAGS -L --fail -o "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-3.m3u" "${{ env.SOURCE_PLAYLIST1c_URL }}" || true
+          [ -f "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-3.m3u" ] && [ $(date -r "destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-3.m3u" +%s) -ge $START_TIME ] && echo "sl-le-3.m3u download : success. $(grep -c '#EXTINF' destination-branch/${{ env.DESTINATION_DIR1_PATH }}/sl-le-3.m3u) EXTINF lines present." || echo "sl-le-3.m3u download : failed"
+
+          curl $CURL_FLAGS -L --fail -o "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-1.m3u" "${{ env.SOURCE_PLAYLIST2a_URL }}" || true
+          [ -f "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-1.m3u" ] && [ $(date -r "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-1.m3u" +%s) -ge $START_TIME ] && echo "fc-le-1.m3u download : success. $(grep -c '#EXTINF' destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-1.m3u) EXTINF lines present." || echo "fc-le-1.m3u download : failed"
+          curl $CURL_FLAGS -L --fail -o "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-2.m3u" "${{ env.SOURCE_PLAYLIST2b_URL }}" || true
+          [ -f "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-2.m3u" ] && [ $(date -r "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-2.m3u" +%s) -ge $START_TIME ] && echo "fc-le-2.m3u download : success. $(grep -c '#EXTINF' destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-2.m3u) EXTINF lines present." || echo "fc-le-2.m3u download : failed"
+          curl $CURL_FLAGS -L --fail -o "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-3.m3u" "${{ env.SOURCE_PLAYLIST2c_URL }}" || true
+          [ -f "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-3.m3u" ] && [ $(date -r "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-3.m3u" +%s) -ge $START_TIME ] && echo "fc-le-3.m3u download : success. $(grep -c '#EXTINF' destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-3.m3u) EXTINF lines present." || echo "fc-le-3.m3u download : failed"
+          curl $CURL_FLAGS -L --fail -o "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-4.m3u" "${{ env.SOURCE_PLAYLIST2d_URL }}" || true
+          [ -f "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-4.m3u" ] && [ $(date -r "destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-4.m3u" +%s) -ge $START_TIME ] && echo "fc-le-4.m3u download : success. $(grep -c '#EXTINF' destination-branch/${{ env.DESTINATION_DIR2_PATH }}/fc-le-4.m3u) EXTINF lines present." || echo "fc-le-4.m3u download : failed"
+
+          rm -f *.tmp *.temp temp_* # cleans up temporary work files
+      
+      - name: Commit Changes and push to Destination Branch
+        run: |
+          cd destination-branch # changes current working directory to the destination branch
+          git config url.https://${{ secrets.PAT_FG_SYNC }}@github.com/.insteadOf https://github.com/ # configure git
+          git config user.name "github-actions[bot]" # configure git
+          git config user.email "github-actions[bot]@users.noreply.github.com" # configure git         
+          git add . # stages all changes in the current directory 
+          if git diff --cached --quiet; then # checks if there are any changes
+            echo "No changes found to commit"
+          else
+            git commit -m "Automated sync from source" # only commits if a binary or text difference exists, alongwith commit message
+            # git pull origin ${{ env.DESTINATION_BRANCH }} --rebase # rebases pull to ensure local is ahead of remote (enable if facing commit/push failures)
+            git push origin ${{ env.DESTINATION_BRANCH }} # pushes to the destination branch
+          fi
+
+
+  
+  create_merged_playlist: # creates a custom-formatted deduplicated merged playlist with prioritized m3u comtent-blocks from already copied source playlists
+    needs: copy_source_playlists # forces this job to wait for the referenced job to finish (forces sequential instead of the default parallel execution)
+    if: always() # this job runs regardless of other jobs' success/failure status
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # grants permissions for the job to write to contents
+    steps:
+      - name: Checkout Destination Branch in Destination Repo
+        uses: actions/checkout@v4
+        with:
+          repository: '${{ env.DESTINATION_REPO }}' # specify 'owner/repo' of the destination repo
+          ref: ${{ env.DESTINATION_BRANCH }}  # set the destination branch to checkout
+          fetch-depth: 0 # get full history to allow rebasing (recommended for every job that needs to commit and push back)
+          persist-credentials: false # REQUIRED if upstream repo is private (see wiki)
+          path: 'destination-branch'
+
+      - name: Process, Deduplicate, Format and Merge Playlists sequentially
+        run: |
+          cd destination-branch # changes current working directory to the destination branch
+          TOTAL_GROUP_FAILURES=0 # tracks global failures across the clean and merge processes of all merged playlists, starts from 0
+
+          # Helper Function for Cleaning and Merging
+          process_group() { # function encapsulating cleaning and merging processes for any given merged playlist folder
+            local dir="$1"
+            local output="$2"
+            shift 2
+            local sources=("$@")
+            
+            echo "---------------------------------------------------------------------"
+            echo "PROCESS START: Creation of merged playlist $output in folder $dir"
+            echo "---------------------------------------------------------------------"
+
+            # Sub-step A: Clean input playlists - remove carriage returns and BOMs
+            echo "DEBUG: Starting cleaning of input playlists for merged playlist $output..."
+            local successful_san_count=0 # count of successfully cleaned input playlists for this merged playlist, starts from 0
+            local cleaned_details="" # record of file-size and count of #EXTINF lines in successfully cleaned input playlists, starts blank
+
+            for src in "${sources[@]}"; do
+              local src_path="$dir/$src"
+              if (set -e; [ -f "$src_path" ] && sed -i '1s/^\xef\xbb\xbf//; s/\r//g' "$src_path"); then # strips Windows line endings (\r) and any non-standard character markers
+                successful_san_count=$((successful_san_count + 1))
+                local file_size=$(stat -c%s "$src_path") # file size in bytes of the cleaned input playlist
+                local extinf_count=$(grep -c "#EXTINF" "$src_path" || echo 0) # count of #EXTINF lines present in the cleaned input playlist
+                cleaned_details+="\n  - $src: $file_size bytes, $extinf_count #EXTINF lines"  # for appending to the summary list for the group-level debug echo
+                echo "DEBUG: Cleaned input playlist $src (size: $file_size bytes). $extinf_count EXTINF lines found." # debug for cleaning step for individual input playlists
+              else
+                echo "ERROR: Cleaning FAILED for input playlist $src or valid playlist $src NOT FOUND in $(pwd). Skipping file."
+              fi
+            done
+
+            # Sub-step B: Group-level summary report after cleaning input files for this merged playlist
+            if [ $successful_san_count -gt 0 ]; then
+              echo -e "DEBUG: Cleaning of input playlists for merged playlist $output COMPLETED. $successful_san_count input playlists successfully cleaned:$cleaned_details"
+            fi
+
+            # Gate: If no input playlists for this merged playlist were cleaned, skip its merge process
+            if [ $successful_san_count -eq 0 ]; then # gate: if none of the input playlists for this merged playlist were successfully cleaned, skips its merge process, workflow continues to cleaning imput playlists for the next merged playlist (ensured by 'return' rather than 'exit')
+              echo "RESULT: Merge process for $output FAILED at cleaning stage. Found no valid input playlists or cleaning failed for all input playlists."
+              return 1 # exits the process_group function with an error code; TOTAL_GROUP_FAILURES=$((TOTAL_GROUP_FAILURES + 1)) logic used in calling the function ensures that the failure is recorded
+            fi
+ 
+            # Sub-step C: Merge of Input Files to Merged Playlist
+            echo "DEBUG: Starting deduplication and merge of cleaned input playlists into $output..."
+            (
+              set -e # ensures that subshell exits on critical command failure
+              local target="$dir/$output"
+              local TRACKER="/tmp/seen_${output}_$(date +%s).tmp" # creates a unique temp tracker for this group's deduplication
+
+              # module: initialization of merged playlist
+              echo "#EXTM3U" > "$target" # initializes the merged playlist with standard EXTM3U header
+              printf "\n" >> "$target" # adds 1-line trailing spacing
+              rm -f "$TRACKER" && touch "$TRACKER" # initialize a fresh instance of the tracker at this point
+
+              # module: deduplication, custom spacing, formatting and appending streams
+              local block_index=0 # block_index tracks which source m3u-block we are currently writing to
+              for src in "${sources[@]}"; do
+                local src_path="$dir/$src"
+                [ ! -f "$src_path" ] && continue
+
+                awk -v src_name="$src" -v tracker="$TRACKER" -v idx="$block_index" ' # start of awk logic string for deduplication, custom spacing and formatting
+
+                  # sub-module: deduplication
+                  BEGIN { count=0; tag_buf=""; file_buf=""; found_stream=0 } # found_stream: 0, (ignore everything) -> 1 (Start processing)
+                  /^#EXTINF/ { found_stream=1 } # found_stream: 1 when the first #EXTINF line in the input playlist is found
+                  {
+                    if (found_stream == 0) next; # discard all lines before first #EXTINF is found, process everything thereon
+                    if (/^#/) {
+                        tag_buf = tag_buf $0 "\n" # buffer metadata lines
+                    } else if (/^(http|https):\/\//) {
+                        url = $0 # deduplicate URLs using the group tracker
+                        cmd = "grep -Fxc \"" url "\" " tracker
+                        cmd | getline seen
+                        close(cmd)                        
+                        if (seen == 0) {
+                          print url >> tracker
+                          file_buf = file_buf tag_buf url "\n"
+                          count++
+                        }
+                        tag_buf = "" # Reset metadata buffer
+                    }
+                  }
+
+                  # sub-module: custom spacing and formatting
+                  END {
+                    if (count > 0) # custom spacing logic: block_index 0 = first block (no preceding space), block_index > 0 = subsequent blocks (2-line preceding space)
+                      prefix = (idx == 0) ? "" : "\n\n" # if not the first block, prepend 2 empty lines
+                      # Header + 1 empty line + content
+                      printf "%s# Playlist from %s : %d streams \n\n%s", prefix, src_name, count, file_buf # add source identifier header + 1-line trail spacing + content
+                    }
+                  }
+                ' \ # end of awk logic string for deduplication, custom spacing and formatting
+                "$src_path" >> "$target" # appends input playlists to the merged playlist using the awk logic
+
+                if grep -q "Playlist from $src" "$target"; then # verify if block was added to determine custom spacing for the next block
+                   block_index=$((block_index + 1))  # only increment block_index if streams in preceding block were actually added
+                fi        
+                echo "DEBUG: $src merged. Group Tracker Count: $(wc -l < "$TRACKER")"
+              done # end of module for deduplication, custom spacing, formatting and appending streams
+              
+              # module: clean up tracker
+              rm -f "$TRACKER"
+            )
+
+            # Sub-step D: Echo result at end of merge process
+            if [ $? -eq 0 ]; then
+              local final_path="$dir/$output"
+              local final_size=$(stat -c%s "$final_path")
+              local final_extinf=$(grep -c "#EXTINF" "$final_path" || echo 0)
+              echo "RESULT: Merge process for $output COMPLETED successfully. $output ($final_size bytes) is ready to push. $final_extinf EXTINF lines present." # debug at the end of merge process
+              return 0
+            else
+              echo "RESULT: Merge process for $output FAILED at deduplication, fomratting or appending stage." 
+              return 1
+            fi
+          }
+
+          # Sequential Independent Execution of Playlist Groups
+          process_group "${{ env.DESTINATION_DIR1_PATH }}" "${{ env.MERGED_PLAYLIST1 }}" "sl-le-1.m3u" "sl-le-2.m3u" "sl-le-3.m3u" || TOTAL_GROUP_FAILURES=$((TOTAL_GROUP_FAILURES + 1))
+          process_group "${{ env.DESTINATION_DIR2_PATH }}" "${{ env.MERGED_PLAYLIST2 }}" "fc-le-1.m3u" "fc-le-2.m3u" "fc-le-3.m3u" "fc-le-4.m3u" || TOTAL_GROUP_FAILURES=$((TOTAL_GROUP_FAILURES + 1))
+
+          echo "TOTAL_FAILURES=$TOTAL_GROUP_FAILURES" >> $GITHUB_ENV # export result to GitHub environment
+
+      - name: Push Merged Playlists to Destination Branch
+        run: |
+          cd destination-branch
+          git config url.https://${{ secrets.PAT_FG_SYNC }}@github.com/.insteadOf https://github.com/ # configure git
+          git config user.name "github-actions[bot]" # configure git
+          git config user.email "github-actions[bot]@users.noreply.github.com" # configure git
+          MERGED_PLAYLISTS=("${{ env.DESTINATION_DIR1_PATH }}/${{ env.MERGED_PLAYLIST1 }}" "${{ env.DESTINATION_DIR2_PATH }}/${{ env.MERGED_PLAYLIST2 }}") # defines output merged playlists
+            git add "${MERGED_PLAYLISTS[@]}" # stages only the merged playlists  
+          for file in "${MERGED_PLAYLISTS[@]}"; do
+            if [ -f "$file" ]; then
+              if git diff --cached --quiet "$file"; then # checks each merged playlist for changes compared to the repository index
+                echo "RESULT: No changes found to commit for merged playlist $file"
+              fi
+            fi
+          done
+          if git diff --staged --quiet; then # detects changes using exit code (0 = no diff, 1 = diff) # checks if changes are detected in any merged playlist at all
+            echo "RESULT: No changes found to commit for any merged playlist"
+          else
+            git commit -m "Auto-updated merged playlists" # only commits if a binary or text difference exists, alongwith commit message
+            # git pull origin ${{ env.DESTINATION_BRANCH }} --rebase # rebase pull to ensure local is ahead of remote i.e. pull latest pushes (say, by previous jobs) to destination branch and rebase local changes on top (enable if facing commit/push failures)
+            git push origin ${{ env.DESTINATION_BRANCH }} # push to the destination branch
+          fi
+          if [ "${{ env.TOTAL_FAILURES }}" -gt 0 ]; then # final job reporting
+            echo "DEBUG: Final Status: FAIL (total $TOTAL_FAILURES group failures recorded)"
+            exit 1
+          fi
+
+
+
+  print_trigger_message: # echos the input message identifying source of workflow trigger (manual via WebUI or automated external cronjob service)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print Trigger Message
+        run: |
+          echo "This workflow run was triggered by: ${{ github.event.inputs.message }}"
