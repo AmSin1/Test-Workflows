@@ -81,17 +81,20 @@ jobs:
           # Optional Curl configuration in next line:
           CURL_FLAGS="--retry 3 --retry-delay 1 --max-time 6 --no-progress-meter" # retry up to x times; delay of exactly x seconds between retries; total time for initial attempt + retries capped at x seconds
           for entry in "${PLAYLISTS[@]}"; do # iterates through the playlists array
-            IFS="|" read -r URL DIR FILE <<< "$entry" # extracts data from the playlist array string using IFS pipe separator
+            IFS="|" read -r URL DIR FILE <<< "$entry" # extracts data from the playlist array string using IFS pipe separator 
             TARGET="destination-branch/$DIR/$FILE" # sets destination file path for each playlist download 
-            RAW_MOD_DATE=$(curl -sI "$URL" | grep -i '^Last-Modified:' | sed 's/^[Ll]ast-[Mm]odified: //I' | tr -d '\r') # fetches the last-modified date of the playlist from the source URL
-            if [ -n "$RAW_MOD_DATE" ]; then
-              SRC_MOD_TIME=$(TZ='Asia/Kolkata' date -d "$RAW_MOD_DATE" "+%d-%m-%Y %H:%M IST" 2>/dev/null || echo "Unknown") # converts and formats the last-modified date specifically to IST (%d-%m-%Y %H:%M IST)
+            
+            # Sub-step 2a: Fetch the playlist's last update date from GitHub API and download playlist 
+            API_URL=$(echo "$URL" | sed -E 's|https://raw.githubusercontent.com([^/]+)/([^/]+)/([^/]+)/(.*)|https://api.github.com/repos/\1/\2/commits?path=\4\&sha=\3\&per_page=1|')
+            RAW_COMMIT_DATE=$(curl -s "$API_URL" | grep '"date":' | head -n 1 | awk -F'"' '{print $4}') # API call to get the latest commit date for this path
+            if [ -n "$RAW_COMMIT_DATE" ]; then
+              SRC_MOD_TIME=$(TZ='Asia/Kolkata' date -d "$RAW_COMMIT_DATE" "+%d-%m-%Y %H:%M IST" 2>/dev/null || echo "Unknown") # converts ISO 8601 date to IST format (%d-%m-%Y %H:%M IST)
             else
               SRC_MOD_TIME="N/A"
             fi
-            curl $CURL_FLAGS -L --fail -o "$TARGET" "$URL" || true # downloads playlist; '-R' sets the downloaded file's update time to the remote source time; 'true' here is the file-level 'continue-on-error: true' flag to ensures that the loop continues even if one download fails
+            curl $CURL_FLAGS -L --fail -o "$TARGET" "$URL" || true # downloads playlist; 'true' here is the file-level 'continue-on-error: true' flag to ensures that the loop continues even if one download fails
 
-            # Sub-step 2a: Echo success/failure and key metrics for each download
+            # Sub-step 2b: Echo success/failure and key metrics for each download
             if [ -f "$TARGET" ] && [ $(date -r "$TARGET" +%s) -ge $START_TIME ]; then # checks if playlist exists AND was actually updated/created during this specific workflow run            
               SIZE=$(stat -c%s "$TARGET")  # calculates file size of such playlist
               COUNT=$(grep -c '#EXTINF' "$TARGET" || true) # counts number of #EXTINF lines in such playlist
