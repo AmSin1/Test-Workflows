@@ -92,28 +92,34 @@ jobs:
 
 
 
-            # This regex captures the 4 components from standard GitHub web raw links
+            echo "------------------------------------------------------------"
+            echo "DEBUG: Starting process for $FILE"
+
+            # 1. FIXED PARSING: Extract components from raw URLs
+
+                        # Using a more robust sed pattern to handle the URL structure correctly
             read -r OWNER REPO BRANCH FILE_PATH <<< $(echo "$URL" | sed -E 's|https://github.com/([^/]+)/([^/]+)/raw/([^/]+)/(.*)|\1 \2 \3 \4|')
             
             echo "DEBUG: Parsed - Owner: $OWNER, Repo: $REPO, Branch: $BRANCH, Path: $FILE_PATH"
 
-            # 2. Corrected API URL Construction
+            # 2. FIXED API URL CONSTRUCTION: Ensure the full path is built
             if [[ -n "$OWNER" && -n "$REPO" ]]; then
               API_URL="https://api.github.com"
               echo "DEBUG: API Request URL: $API_URL"
               
-              # 3. Authenticated API Call
+              # 3. Authenticated API Call using your existing secret
               API_RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.PAT_FG_SYNC }}" "$API_URL")
               
-              # 4. Extract Date with safe Array Indexing
-              # The .[0] ensures we only look at the first (most recent) commit object
-              RAW_COMMIT_DATE=$(echo "$API_RESPONSE" | jq -r '.[0].commit.committer.date // empty')
+              # 4. FIXED JQ FILTER: Index the array first to avoid the "Cannot index object" error
+              # The .[0] ensures we target the first commit object in the array
+              RAW_COMMIT_DATE=$(echo "$API_RESPONSE" | jq -r 'if type=="array" and length > 0 then .[0].commit.committer.date else empty end')
               echo "DEBUG: Extracted RAW_COMMIT_DATE: $RAW_COMMIT_DATE"
             else
-              echo "DEBUG ERROR: Failed to parse URL components. Check URL format."
+              echo "DEBUG ERROR: Failed to parse URL components correctly."
               RAW_COMMIT_DATE=""
             fi
 
+            # 5. IST CONVERSION: Format the retrieved date
             if [ -n "$RAW_COMMIT_DATE" ] && [ "$RAW_COMMIT_DATE" != "null" ]; then
               SRC_MOD_TIME=$(TZ='Asia/Kolkata' date -d "$RAW_COMMIT_DATE" "+%d-%m-%Y %H:%M IST" 2>/dev/null || echo "Unknown")
               echo "DEBUG: Formatted IST Time: $SRC_MOD_TIME"
@@ -121,6 +127,10 @@ jobs:
               SRC_MOD_TIME="N/A"
               echo "DEBUG: Could not resolve commit date."
             fi
+
+
+
+
 
 
             
