@@ -84,20 +84,62 @@ jobs:
           for entry in "${PLAYLISTS[@]}"; do # iterates through the playlists array
             IFS="|" read -r URL DIR FILE <<< "$entry" # extracts data from the playlist array string using IFS pipe separator 
             TARGET="destination-branch/$DIR/$FILE" # sets destination file path for each playlist download 
+       
+            # Sub-step 2a: Fetch the playlist's last update date and download playlist 
+
+
+
+
+
+            echo "------------------------------------------------------------"
+            echo "DEBUG: Starting process for $FILE"
+            echo "DEBUG: Source URL: $URL"
+
+            # 1. Parse components for the API request
+            OWNER_REPO_PATH=$(echo "$URL" | sed -E 's|https://raw.githubusercontent.com([^/]+)/([^/]+)/([^/]+)/(.*)|\1 \2 \3 \4|')
+            read -r OWNER REPO BRANCH FILE_PATH <<< "$OWNER_REPO_PATH"
             
-            # Sub-step 2a: Fetch the playlist's last update date from GitHub API and download playlist 
-            git config url.https://${{ secrets.PAT_FG_SYNC }}@github.com/.insteadOf https://github.com/
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com" 
-            read -r OWNER REPO BRANCH FILE_PATH <<< $(echo "$URL" | sed -E 's|https://raw.githubusercontent.com/([^/]+)/([^/]+)/([^/]+)/(.*)|\1 \2 \3 \4|')
-            RAW_COMMIT_DATE=$(gh api -H "Accept: application/vnd.github+json" \
-              "/repos/$OWNER/$REPO/commits?path=$FILE_PATH&sha=$BRANCH&per_page=1" \
-              --jq '.[0].commit.committer.date' 2>/dev/null || echo "")
+            echo "DEBUG: Parsed - Owner: $OWNER, Repo: $REPO, Branch: $BRANCH, Path: $FILE_PATH"
+
+            # 2. Formulate API URL
+            API_URL="https://api.github.com"
+            echo "DEBUG: API Request URL: $API_URL"
+            
+            # 3. Fetch API Response with Debugging
+            # We capture the full response in a temporary variable for debugging
+            API_RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.PAT_FG_SYNC }}" "$API_URL")
+            
+            # Check if API response is empty or an error
+            if [[ -z "$API_RESPONSE" ]]; then
+              echo "DEBUG ERROR: API returned an empty response."
+            elif [[ "$API_RESPONSE" == *"message"* ]]; then
+              echo "DEBUG ERROR: API returned an error message: $(echo "$API_RESPONSE" | jq -r '.message')"
+            fi
+
+            # 4. Extract Date using verified filter
+            RAW_COMMIT_DATE=$(echo "$API_RESPONSE" | jq -r 'if type=="array" and length > 0 then .[0].commit.committer.date else empty end')
+            echo "DEBUG: Extracted RAW_COMMIT_DATE: $RAW_COMMIT_DATE"
+
             if [ -n "$RAW_COMMIT_DATE" ] && [ "$RAW_COMMIT_DATE" != "null" ]; then
-              SRC_MOD_TIME=$(TZ='Asia/Kolkata' date -d "$RAW_COMMIT_DATE" "+%d-%m-%Y %H:%M IST" 2>/dev/null || echo "Unknown") # fetch the last commit timestamp for the playlist            
+              SRC_MOD_TIME=$(TZ='Asia/Kolkata' date -d "$RAW_COMMIT_DATE" "+%d-%m-%Y %H:%M IST" 2>/dev/null || echo "Unknown")
+              echo "DEBUG: Formatted IST Time: $SRC_MOD_TIME"
             else
               SRC_MOD_TIME="N/A"
+              echo "DEBUG: Could not resolve commit date. Setting to N/A."
             fi
+
+
+
+
+
+
+            
+
+
+
+
+
+            
             curl $CURL_FLAGS -L --fail -o "$TARGET" "$URL" || true # downloads playlist; 'true' here is the file-level 'continue-on-error: true' flag to ensures that the loop continues even if one download fails
 
             # Sub-step 2b: Echo success/failure and key metrics for each download
