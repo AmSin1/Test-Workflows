@@ -90,41 +90,40 @@ jobs:
 
 
 
-
             echo "------------------------------------------------------------"
             echo "DEBUG: Processing $FILE"
 
-            # 1. Extract components using a more reliable sed/read combo
-            # This handles both ://github.com... and raw.githubusercontent.com URLs
-            OWNER_REPO_PATH=$(echo "$URL" | sed -E 's|https://github.com([^/]+)/([^/]+)/raw/([^/]+)/(.*)|\1 \2 \3 \4|')
-            read -r OWNER REPO BRANCH FILE_PATH <<< "$OWNER_REPO_PATH"
+            # 1. FIXED PARSING: Handles ://
+                        # Uses -E for extended regex and ensures capture groups match correctly
+            PARSED_URL=$(echo "$URL" | sed -E 's|https://github.com/([^/]+)/([^/]+)/raw/([^/]+)/(.*)|\1 \2 \3 \4|')
+            read -r OWNER REPO BRANCH FILE_PATH <<< "$PARSED_URL"
             
             echo "DEBUG: Parsed - Owner: $OWNER, Repo: $REPO, Branch: $BRANCH, Path: $FILE_PATH"
 
-            # 2. Build API URL with absolute pathing to avoid variable truncation
-            if [ -n "$OWNER" ] && [ -n "$REPO" ]; then
-              # Construct the full API endpoint for the last commit on that file path
+            if [[ -n "$OWNER" && -n "$REPO" && -n "$FILE_PATH" ]]; then
+              # 2. Build Correct API URL
               FULL_API_URL="https://api.github.com{OWNER}/${REPO}/commits?path=${FILE_PATH}&sha=${BRANCH}&per_page=1"
-              echo "DEBUG: Full API URL: $FULL_API_URL"
+              echo "DEBUG: API Request URL: $FULL_API_URL"
               
               # 3. Fetch API response with authentication
               API_RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.PAT_FG_SYNC }}" "$FULL_API_URL")
               
-              # 4. Extract date from the FIRST object of the commit array
-              # Using '[0]' explicitly fixes the "Cannot index object with number" error
-              RAW_COMMIT_DATE=$(echo "$API_RESPONSE" | jq -r 'if type=="array" then .[0].commit.committer.date else empty end')
+              # 4. Extract Date: Target the first commit object in the array
+              # Using '[0]' ensures we index the array correctly to avoid JQ errors
+              RAW_COMMIT_DATE=$(echo "$API_RESPONSE" | jq -r 'if type=="array" and length > 0 then .[0].commit.committer.date else empty end')
               echo "DEBUG: Extracted Date: $RAW_COMMIT_DATE"
             else
               RAW_COMMIT_DATE=""
               echo "DEBUG ERROR: Parsing failed for URL: $URL"
             fi
 
-            # 5. Convert to IST
-            if [ -n "$RAW_COMMIT_DATE" ] && [ "$RAW_COMMIT_DATE" != "null" ]; then
+            # 5. Convert ISO 8601 UTC to IST
+            if [[ -n "$RAW_COMMIT_DATE" && "$RAW_COMMIT_DATE" != "null" ]]; then
               SRC_MOD_TIME=$(TZ='Asia/Kolkata' date -d "$RAW_COMMIT_DATE" "+%d-%m-%Y %H:%M IST" 2>/dev/null || echo "Unknown")
             else
               SRC_MOD_TIME="N/A"
             fi
+
 
 
 
