@@ -118,7 +118,7 @@ jobs:
             "${{ env.DESTINATION_DIR2_PATH }}/fc-le-4.m3u"
           )
 
-          # Step 3: Use tracking variables to analyse downloaded playlists for the final summary echos        
+          # Step 3: Iterate through the downloaded playlists to analyse using tracking variables for the final summary echos              
           COMMITTED_NAMES=""
           COMMITTED_COUNT=0
           SKIPPED_NAMES=""
@@ -131,6 +131,7 @@ jobs:
               if [[ -z "$GIT_STATUS" ]]; then # if git status is empty, it means the file is unchanged/clean
                 SKIPPED_NAMES+="$FILE_NAME " # playlist is identical to the one in the repo and will not be committed; adds to skipped list
                 SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+                echo "RESULT: No changes found to commit for playlist $FILE_NAME."
               else
                 COMMITTED_NAMES+="$FILE_NAME " # playlist is changed or new and will be committed; adds to committed list and gathers metrics
                 COMMITTED_COUNT=$((COMMITTED_COUNT + 1))
@@ -305,29 +306,58 @@ jobs:
           cd destination-branch
 
           # Step 1: Configure git             
-          git config url.https://${{ secrets.PAT_FG_SYNC }}@github.com/.insteadOf https://github.com/ # configure git
-          git config user.name "github-actions[bot]" # configure git
-          git config user.email "github-actions[bot]@users.noreply.github.com" # configure git
+          git config url.https://${{ secrets.PAT_FG_SYNC }}@github.com/.insteadOf https://github.com/
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Step 2: Stage merged playlists sequentially and echo its commit result              
-          MERGED_PLAYLISTS=("${{ env.DESTINATION_DIR1_PATH }}/${{ env.MERGED_PLAYLIST1 }}" "${{ env.DESTINATION_DIR2_PATH }}/${{ env.MERGED_PLAYLIST2 }}") # defines output merged playlists
-            git add "${MERGED_PLAYLISTS[@]}" # stages only the merged playlists  
-          for file in "${MERGED_PLAYLISTS[@]}"; do
-            if [ -f "$file" ]; then
-              if git diff --cached --quiet "$file"; then # checks each merged playlist for changes compared to the repository index
-                echo "RESULT: No changes found to commit for merged playlist $file"
+          # Step 2: Define the list of merged playlists for analysis
+          FILES=(
+            "${{ env.DESTINATION_DIR1_PATH }}/sl-le-all.m3u"
+            "${{ env.DESTINATION_DIR2_PATH }}/fc-le-all.m3u"
+          )
+
+          # Step 3: Iterate through the merged playlists to analyse using tracking variables for the final summary echos        
+          COMMITTED_NAMES=""
+          COMMITTED_COUNT=0
+          SKIPPED_NAMES=""
+          SKIPPED_COUNT=0
+          SUMMARY_DETAILS=""         
+          for FILE in "${FILES[@]}"; do
+            FILE_NAME=$(basename "$FILE")
+            if [ -f "$FILE" ]; then       
+              GIT_STATUS=$(git status --porcelain "$FILE") # uses git status to determine the file state
+              if [[ -z "$GIT_STATUS" ]]; then # if git status is empty, it means the file is unchanged/clean
+                SKIPPED_NAMES+="$FILE_NAME " # playlist is identical to the one in the repo and will not be committed; adds to skipped list
+                SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+                echo "RESULT: No changes found to commit for merged playlist $FILE_NAME."
+              else
+                COMMITTED_NAMES+="$FILE_NAME " # playlist is changed or new and will be committed; adds to committed list and gathers metrics
+                COMMITTED_COUNT=$((COMMITTED_COUNT + 1))
+                SIZE=$(stat -c%s "$FILE") 
+                EXTINF=$(grep -c '#EXTINF' "$FILE" || true)
+                SUMMARY_DETAILS+="\n  - $FILE_NAME ($SIZE bytes): now has $EXTINF #EXTINF lines"
+                git add "$FILE" # stage only the changed/new files selectively based on the git status check         
               fi
+            else
+              echo "WARNING: Merged playlist $FILE_NAME not found."
             fi
           done
-          
-          # Step 3: Commit changes, push to destination branch and echo final commit summaries            
-          if git diff --staged --quiet; then # detects changes using exit code (0 = no diff, 1 = diff) # checks if changes are detected in any merged playlist at all
-            echo "RESULT: No changes found to commit for any merged playlist"
+
+          # Step 4: Commit changes, push to destination branch and echo final commit summaries  
+          if git diff --cached --quiet; then # checks if there are any changes
+            echo "----------------------------------------------------------------------------------------------------------"
+            echo "RESULT: No changes found to commit for any merged playlists"
           else
             git commit -m "Auto-updated merged playlists" # only commits if a binary or text difference exists, alongwith commit message
-            # git pull origin ${{ env.DESTINATION_BRANCH }} --rebase # rebase pull to ensure local is ahead of remote i.e. pull latest pushes (say, by previous jobs) to destination branch and rebase local changes on top (enable if facing commit/push failures)
-            git push origin ${{ env.DESTINATION_BRANCH }} # push to the destination branch
+            # git pull origin ${{ env.DESTINATION_BRANCH }} --rebase # rebases pull to ensure local is ahead of remote (enable if facing commit/push failures)
+            git push origin ${{ env.DESTINATION_BRANCH }} # pushes to the destination branch
+            echo "----------------------------------------------------------------------------------------------------------"
+            echo "RESULT: Commits were made to $COMMITTED_COUNT merged playlist(s): $COMMITTED_NAMES"
+            echo -e "Details: $SUMMARY_DETAILS"
           fi
+          echo "----------------------------------------------------------------------------------------------------------"
+          echo "RESULT: $SKIPPED_COUNT merged playlist(s) were found unchanged and were skipped: $SKIPPED_NAMES"
+          echo "----------------------------------------------------------------------------------------------------------"
           if [ "${{ env.TOTAL_FAILURES }}" -gt 0 ]; then # final job reporting
             echo "DEBUG: Final Status: FAIL (total $TOTAL_FAILURES group failures recorded)"
             exit 1
