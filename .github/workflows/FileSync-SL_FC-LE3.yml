@@ -267,8 +267,8 @@ jobs:
                   END {
                     if (count > 0) { # custom spacing logic: block_index 0 = first block (no preceding space), block_index > 0 = subsequent blocks (2-line preceding space)
                       prefix = (idx == 0) ? "" : "\n\n" # if not the first block, prepend 2 empty lines
-                      cmd = "TZ='Asia/Kolkata' date -r " FILENAME " '+%d-%m-%Y %H:%M IST'"; (cmd | getline last_mod); close(cmd); # temporarily sets the timezone for this specific date command execution without affecting the rest of the workflow; 'date -r FILENAME' reads the last modification time of the file being processed; close() command is used to avoid stale data in the last_mod variable and memory/file handle leaks in the loop
-                      printf "%s# Playlist from %s (last updated: %s) : %d streams \n\n%s", prefix, src_name, last_mod, count, file_buf # add source identifier header + 1-line trail spacing + content
+                      cmd = "TZ='Asia/Kolkata' date -r " FILENAME " +\"%d-%m-%Y %H:%M IST\""; (cmd | getline last_mod); close(cmd); # temporarily sets the timezone for this specific date command execution without affecting the rest of the workflow; 'date -r FILENAME' reads the last modification time of the file being processed; close() command ensures the pipe is closed immediately after the date is captured, preventing system resource leaks into this loop
+                      printf "%s# Playlist from %s (last updated: %s) : %d streams \n\n%s", prefix, src_name, last_mod, count, file_buf; # add source identifier header + 1-line trail spacing + content
                     }
                   }                 
                 ' "$src_path" >> "$target" # appends input playlists to the merged playlist using the awk logic
