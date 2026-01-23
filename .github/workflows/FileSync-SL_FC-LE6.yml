@@ -86,9 +86,9 @@ jobs:
             TARGET="destination-branch/$DIR/$FILE" # sets destination file path for each playlist download 
             
             # Sub-step 2a: Fetch the playlist's last update date from GitHub API and download playlist 
-            read -r OWNER REPO BRANCH FILE_PATH <<< $(echo "$URL" | sed -E 's|https://raw.githubusercontent.com([^/]+)/([^/]+)/([^/]+)/(.*)|\1 \2 \3 \4|')
+            read -r OWNER REPO BRANCH FILE_PATH <<< $(echo "$URL" | sed -E 's|https://raw.githubusercontent.com/([^/]+)/([^/]+)/([^/]+)/(.*)|\1 \2 \3 \4|')
             RAW_COMMIT_DATE=$(gh api "/repos/$OWNER/$REPO/commits?path=$FILE_PATH&sha=$BRANCH&per_page=1" --jq '.[0].commit.committer.date' 2>/dev/null || echo "") # GH API (GitHub CLI) call to get the latest commit date for this path
-            if [ -n "$RAW_COMMIT_DATE" ] && [ "$RAW_COMMIT_DATE" != "null" ]; then
+            if [ -n "$RAW_COMMIT_DATE" ]; then
               SRC_MOD_TIME=$(TZ='Asia/Kolkata' date -d "$RAW_COMMIT_DATE" "+%d-%m-%Y %H:%M IST" 2>/dev/null || echo "Unknown") # converts ISO 8601 date to IST format (%d-%m-%Y %H:%M IST)
             else
               SRC_MOD_TIME="N/A"
