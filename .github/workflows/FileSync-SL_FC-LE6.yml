@@ -85,7 +85,7 @@ jobs:
             TARGET="destination-branch/$DIR/$FILE" # sets destination file path for each playlist download 
             
             # Sub-step 2a: Fetch the playlist's last update date from GitHub API and download playlist 
-            OWNER_REPO_PATH=$(echo "$URL" | sed -E 's|https://raw.githubusercontent.com/([^/]+)/([^/]+)/([^/]+)/(.*)|\1 \2 \3 \4|')
+            OWNER_REPO_PATH=$(echo "$URL" | sed -E 's|https://raw.githubusercontent.com([^/]+)/([^/]+)/([^/]+)/(.*)|\1 \2 \3 \4|')
             read -r OWNER REPO BRANCH FILE_PATH <<< "$OWNER_REPO_PATH"
             API_URL="https://api.github.com" # formulates the API URL specifically for the last commit of the playlist
             RAW_COMMIT_DATE=$(curl -s -H "Authorization: Bearer ${{ secrets.PAT_FG_SYNC }}" "$API_URL" | jq -r '.[0].commit.committer.date // empty') # API call to get the latest commit date for this path
