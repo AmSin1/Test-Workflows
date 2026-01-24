@@ -78,7 +78,7 @@ jobs:
           )
 
           # Step 2: Download playlists using curl command
-          METADATA_FILE="${{ github.workspace }}/remote_timestamps.tmp" # initializes the metadata file file to record source playlists' latest remote update timestamps
+          METADATA_FILE="${{ github.workspace }}/remote_timestamps.meta" # initializes the metadata file file to record source playlists' latest remote update timestamps
           touch "$METADATA_FILE" # ensures the initialized file exists
           # Optional Curl configuration in next line:
           CURL_FLAGS="--retry 3 --retry-delay 1 --max-time 6 --no-progress-meter" # retry up to x times; delay of exactly x seconds between retries; total time for initial attempt + retries capped at x seconds
@@ -131,7 +131,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playlist-metadata
-          path: ${{ github.workspace }}/remote_timestamps.tmp
+          path: ${{ github.workspace }}/remote_timestamps.meta
           if-no-files-found: error # forces this job to fail if the playlist-metadata file is missing
       
       - name: Commit Changes and Push to Destination Branch
@@ -278,7 +278,7 @@ jobs:
 
               # module: append streams from a cleaned input playlist to the merged playlist after deduplication, custom spacing and formatting; echo result
               local block_index=0 # block_index tracks which source m3u-block we are currently writing to
-              METADATA_FILE="${{ github.workspace }}/remote_timestamps.tmp"
+              METADATA_FILE="${{ github.workspace }}/remote_timestamps.meta"
               for src in "${sources[@]}"; do
                 local src_path="$dir/$src"
                 [ ! -f "$src_path" ] && continue
