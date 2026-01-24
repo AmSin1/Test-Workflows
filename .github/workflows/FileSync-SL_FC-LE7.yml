@@ -265,8 +265,8 @@ jobs:
               for src in "${sources[@]}"; do
                 local src_path="$dir/$src"
                 [ ! -f "$src_path" ] && continue
-                RAW_DATE=$(stat -c %y "$src_path") # captures raw update date from the input playlist
-                LAST_MOD=$(TZ='Asia/Kolkata' date -d "$RAW_DATE" "+%d-%m-%Y %H:%M IST") # formats raw date to DD-MM-YYYY format and applies IST timezone
+                EPOCH_DATE=$(stat -c %Y "$src_path") # captures update date from the input playlist in Unix time
+                LAST_MOD=$(TZ='Asia/Kolkata' date -d "@$EPOCH_DATE" "+%d-%m-%Y %H:%M IST") # formats epoch to DD-MM-YYYY and applies IST timezone
 
                 # function: awk for deduplication and custom formatting
                 awk -v src_name="$src" -v tracker="$TRACKER" -v idx="$block_index" -v mod_date="$LAST_MOD" '
