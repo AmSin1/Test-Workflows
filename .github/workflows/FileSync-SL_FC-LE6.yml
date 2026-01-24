@@ -83,16 +83,17 @@ jobs:
           for entry in "${PLAYLISTS[@]}"; do # iterates through the playlists array
             IFS="|" read -r URL DIR FILE <<< "$entry" # extracts data from the playlist array string using IFS pipe separator
             TARGET="destination-branch/$DIR/$FILE" # sets destination file path for each playlist download
-            curl $CURL_FLAGS -L -R --fail -o "$TARGET" "$URL" || true # downloads playlist; 'true' here is the file-level 'continue-on-error: true' flag to ensures that the loop continues even if one download fails
-
-            # Sub-step 2a: Echo success/failure and key metrics for each download
-            HTTP_CODE=$(curl $CURL_FLAGS -L -R --fail -w "%{http_code}" -o "$TARGET" "$URL" || echo "000") # captures the HTTP status code to verify download success
-            EXIT_CODE=$? 
-            if [ -f "$TARGET" ] && [ "$HTTP_CODE" = "200" ]; then # checks if playlist exists AND was actually updated/created during this specific workflow run            
-              SIZE=$(stat -c%s "$TARGET")  # calculates file size of such playlist
+            HTTP_CODE=$(curl $CURL_FLAGS -L -R --fail -w "%{http_code}" -o "$TARGET" "$URL" || echo "000") # downloads the playlist using curl and captures the HTTP status code to verify download success
+            EXIT_CODE=$?
+            
+            # Sub-step 2a: Echo success/failure and key metrics for each download 
+            if [ "$HTTP_CODE" = "200" ] && [ -f "$TARGET" ]; then # checks if playlist exists AND was actually updated/created during this specific workflow run            
+              SIZE=$(stat -c%s "$TARGET") # calculates file size of such playlist
               COUNT=$(grep -c '#EXTINF' "$TARGET" || true) # counts number of #EXTINF lines in such playlist
-              echo "$FILE download : SUCCESS. File size $SIZE bytes. $COUNT #EXTINF lines present."
-            else
+              EPOCH_TIME=$(stat -c '%Y' "$TARGET") # gets the downloaded file's modification time as a unix epoch timestamp
+              MOD_TIME=$(TZ="Asia/Kolkata" date -d "@$EPOCH_TIME" "+%d-%m-%Y %H:%M IST") # converts and formats epoch time to IST
+              echo "$FILE download : SUCCESS. Last updated $MOD_TIME. File size $SIZE bytes. $COUNT #EXTINF lines present."
+            else  
               echo "$FILE download : FAILED (HTTP: $HTTP_CODE, Exit: $EXIT_CODE)"
             fi
           done
