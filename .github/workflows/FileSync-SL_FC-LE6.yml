@@ -8,7 +8,7 @@
 # Need to use Personal Access Token (PAT) for commiting and pushing to destination repo - create a PAT Classic (with workflow permissions) or PAT Fine-grained (with actions(R/W), contents(code)(R/W), pull requests(R/W) and workflows(R/W) permissions)
 # Store PAT Classic or PAT Fine-grained token's value in the control repo's secrets with names PAT_CL_SYNC or PAT_FG_SYNC
 
-name: FileSync SL&FC LE 6
+name: FileSync SL&FC LE 5
 
 on: 
   workflow_dispatch: # allows manual workflow run from the Actions tab (workflow must be in default branch to work)
@@ -23,7 +23,6 @@ on:
     # - cron: '*/22 * * * *'  
       
 env:
-  GITHUB_TOKEN: ${{ secrets.PAT_FG_SYNC }}
   CRONJOB_SERVICE: "FastCron"
   DESTINATION_REPO_URL: "https://github.com/AmSin1/Repo.git"
   DESTINATION_REPO: "AmSin1/Repo"
@@ -82,66 +81,15 @@ jobs:
           # Optional Curl configuration in next line:
           CURL_FLAGS="--retry 3 --retry-delay 1 --max-time 6 --no-progress-meter" # retry up to x times; delay of exactly x seconds between retries; total time for initial attempt + retries capped at x seconds
           for entry in "${PLAYLISTS[@]}"; do # iterates through the playlists array
-            IFS="|" read -r URL DIR FILE <<< "$entry" # extracts data from the playlist array string using IFS pipe separator 
-            TARGET="destination-branch/$DIR/$FILE" # sets destination file path for each playlist download 
-       
-            # Sub-step 2a: Fetch the playlist's last update date and download playlist 
-
-
-
-
-
-        
-            OWNER=$(echo "$URL" | cut -d'/' -f4)
-            REPO=$(echo "$URL" | cut -d'/' -f5)
-            BRANCH=$(echo "$URL" | cut -d'/' -f7)
-            FILE_PATH=$(echo "$URL" | cut -d'/' -f8-)
-          
-            # Verify parsing success before proceeding
-            if [[ -n "$OWNER" && -n "$REPO" ]]; then
-              # 2. CONSTRUCT API URL: FIXED SYNTAX
-              # Added leading / after api.github.com and added $ before {OWNER}
-              FULL_API_URL="https://api.github.com/${OWNER}/${REPO}/commits?path=${FILE_PATH}&sha=${BRANCH}&per_page=1"
-              
-              # 3. AUTHENTICATED API CALL: Using PAT secret for repo access
-              # API response is a JSON array
-              API_RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.PAT_FG_SYNC }}" "$FULL_API_URL")
-              
-              # 4. JQ FILTER: Robust array handling for date extraction
-              # The '..' finds the committer date within the first element of the array
-              RAW_COMMIT_DATE=$(echo "$API_RESPONSE" | jq -r 'if type=="array" and length > 0 then ..commit.committer.date else empty end')
-            else
-              RAW_COMMIT_DATE=""
-            fi
-          
-            # 5. IST CONVERSION: Shift UTC timestamp to Indian Standard Time
-            if [[ -n "$RAW_COMMIT_DATE" && "$RAW_COMMIT_DATE" != "null" ]]; then
-              SRC_MOD_TIME=$(TZ='Asia/Kolkata' date -d "$RAW_COMMIT_DATE" "+%d-%m-%Y %H:%M IST" 2>/dev/null || echo "Unknown")
-            else
-              SRC_MOD_TIME="N/A"
-            fi
-        
-
-
-
-
-
-
-
-            
-
-
-
-
-
-            
+            IFS="|" read -r URL DIR FILE <<< "$entry" # extracts data from the playlist array string using IFS pipe separator
+            TARGET="destination-branch/$DIR/$FILE" # sets destination file path for each playlist download
             curl $CURL_FLAGS -L --fail -o "$TARGET" "$URL" || true # downloads playlist; 'true' here is the file-level 'continue-on-error: true' flag to ensures that the loop continues even if one download fails
 
-            # Sub-step 2b: Echo success/failure and key metrics for each download
+            # Sub-step 2a: Echo success/failure and key metrics for each download
             if [ -f "$TARGET" ] && [ $(date -r "$TARGET" +%s) -ge $START_TIME ]; then # checks if playlist exists AND was actually updated/created during this specific workflow run            
               SIZE=$(stat -c%s "$TARGET")  # calculates file size of such playlist
               COUNT=$(grep -c '#EXTINF' "$TARGET" || true) # counts number of #EXTINF lines in such playlist
-              echo "$FILE download : SUCCESS. Last updated: $SRC_MOD_TIME. File size $SIZE bytes. $COUNT #EXTINF lines present."
+              echo "$FILE download : SUCCESS. File size $SIZE bytes. $COUNT #EXTINF lines present."
             else
               echo "$FILE download : FAILED"
             fi
