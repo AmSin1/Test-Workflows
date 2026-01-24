@@ -119,7 +119,6 @@ jobs:
             else  
               echo "$FILE download : FAILED (HTTP: $HTTP_CODE, Exit: $EXIT_CODE)"
             fi
-            stat -c %y "$TARGET"
           done
 
           # Step 3: Clean up temporary work files       
