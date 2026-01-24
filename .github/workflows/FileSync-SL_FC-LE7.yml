@@ -215,8 +215,7 @@ jobs:
       - name: Download Artifcat with Remote Timestamps Metadata
         uses: actions/download-artifact@v4
         with:
-          name: playlist-metadata
-          path: .    
+          name: playlist-metadata  
 
       - name: Process, Deduplicate, Format and Merge Playlists sequentially
         run: |
