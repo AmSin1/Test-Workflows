@@ -265,8 +265,14 @@ jobs:
               for src in "${sources[@]}"; do
                 local src_path="$dir/$src"
                 [ ! -f "$src_path" ] && continue
-                EPOCH_DATE=$(stat -c %Y "$src_path") # captures update date from the input playlist in Unix time
-                LAST_MOD=$(TZ='Asia/Kolkata' date -d "@$EPOCH_DATE" "+%d-%m-%Y %H:%M IST") # formats epoch to DD-MM-YYYY and applies IST timezone
+                EPOCH_DATE=$(git log -1 --format=%at -- "$src_path" 2>/dev/null || echo "") # attempt to get the last commit timestamp in Unix time of this file already existing in the repo
+                if [ -n "$EPOCH_DATE" ]; then # case a: file has history in the repo 
+                  LAST_MOD=$(TZ='Asia/Kolkata' date -d "@$EPOCH_DATE" "+%d-%m-%Y %H:%M IST") # formats epoch to DD-MM-YYYY and applies IST timezone
+                else
+                  EPOCH_DATE=$(stat -c %Y "$src_path") # case b: git log failed (likely a new file or shallow clone), fallback to local file timestamp (current workflow run time)
+                  LAST_MOD=$(TZ='Asia/Kolkata' date -d "@$EPOCH_DATE" "+%d-%m-%Y %H:%M IST") # formats epoch to DD-MM-YYYY and applies IST timezone
+                  echo "DEBUG: git log failed for $src - falling back to current workflow run timestamp.
+                fi
 
                 # function: awk for deduplication and custom formatting
                 awk -v src_name="$src" -v tracker="$TRACKER" -v idx="$block_index" -v mod_date="$LAST_MOD" '
