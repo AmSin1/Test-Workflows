@@ -78,6 +78,8 @@ jobs:
           )
 
           # Step 2: Download playlists using curl command
+          METADATA_FILE="remote_timestamps.tmp" # initializes the metadata file file to record source playlists' latest remote update timestamps
+          touch "$METADATA_FILE"
           # Optional Curl configuration in next line:
           CURL_FLAGS="--retry 3 --retry-delay 1 --max-time 6 --no-progress-meter" # retry up to x times; delay of exactly x seconds between retries; total time for initial attempt + retries capped at x seconds
           for entry in "${PLAYLISTS[@]}"; do # iterates through the playlists array
@@ -113,6 +115,7 @@ jobs:
               fi              
               SIZE=$(stat -c%s "$TARGET") # calculates file size of such playlist
               COUNT=$(grep -c '#EXTINF' "$TARGET" || true) # counts number of #EXTINF lines in such playlist
+              echo "$FILE|$MOD_TIME" >> "$METADATA_FILE" # records the filename and its remote timestamp into the metadata file
               echo "$FILE download : SUCCESS. Last updated $MOD_TIME $TIME_NOTE. File size $SIZE bytes. $COUNT #EXTINF lines present."
               unset MOD_TIME # reset variables for next iteration
               unset COMMIT_DATE # reset variables for next iteration
@@ -123,6 +126,12 @@ jobs:
 
           # Step 3: Clean up temporary work files       
           rm -f *.tmp *.temp temp_* # 
+
+      - name: Upload Artifcat with Remote Timestamps Metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: playlist-metadata
+          path: remote_timestamps.tmp
       
       - name: Commit Changes and Push to Destination Branch
         run: |
@@ -194,6 +203,12 @@ jobs:
     permissions:
       contents: write # grants permissions for the job to write to contents
     steps:
+      - name: Download Artifcat with Remote Timestamps Metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: playlist-metadata
+          path: .    
+          
       - name: Checkout Destination Branch in Destination Repo
         uses: actions/checkout@v4
         with:
@@ -261,23 +276,19 @@ jobs:
               touch "$TRACKER" # initialize a fresh instance of the tracker at this point
 
               # module: append streams from a cleaned input playlist to the merged playlist after deduplication, custom spacing and formatting; echo result
-              git config --global --add safe.directory "$GITHUB_WORKSPACE" # trust the repository directory to avoid git log failures while fetching timestamps
               local block_index=0 # block_index tracks which source m3u-block we are currently writing to
               for src in "${sources[@]}"; do
                 local src_path="$dir/$src"
                 [ ! -f "$src_path" ] && continue
 
                 # fetch-timestamps
-                local git_path=$(realpath --relative-to="." "$src_path") # ensures the path is relative to the git root
-                EPOCH_DATE=$(git log -1 --follow --format=%at -- "$git_path" 2>/dev/null || echo "") # attempt to get the last commit timestamp in Unix time of this file already existing in the repo
-                if [ -n "$EPOCH_DATE" ] && [[ "$EPOCH_DATE" =~ ^[0-9]+$ ]]; then  
-                  LAST_MOD=$(TZ='Asia/Kolkata' date -d "@$EPOCH_DATE" "+%d-%m-%Y %H:%M IST") # case a: file has history in the repo, formats epoch to DD-MM-YYYY and applies IST timezone
-                else
-                  EPOCH_DATE=$(stat -c %Y "$src_path") # case b: git log failed (likely a new file in this run), fallback to local file timestamp (current workflow run time)
-                  LAST_MOD=$(TZ='Asia/Kolkata' date -d "@$EPOCH_DATE" "+%d-%m-%Y %H:%M IST") # formats epoch to DD-MM-YYYY and applies IST timezone
-                  echo "DEBUG: git log failed for $git_path - falling back to current workflow run timestamp."
+                LAST_MOD=$(grep "^$src|" remote_timestamps.tmp | cut -d'|' -f2 || echo "Unknown Date") # capture the input playlist's remote timestamp from the metadata file
+                if [ "$LAST_MOD" = "Unknown Date" ]; then
+                  EPOCH_DATE=$(stat -c %Y "$src_path") # fallback - if playlist is not found in metadata file, use current system timestamp
+                  LAST_MOD=$(TZ='Asia/Kolkata' date -d "@$EPOCH_DATE" "+%d-%m-%Y %H:%M IST")
+                  echo "DEBUG: $src not found in remote timestamps metadata file, falling back to current workflow run's timestamp."
                 fi
-
+  
                 # function: awk for deduplication and custom formatting
                 awk -v src_name="$src" -v tracker="$TRACKER" -v idx="$block_index" -v mod_date="$LAST_MOD" '
 
