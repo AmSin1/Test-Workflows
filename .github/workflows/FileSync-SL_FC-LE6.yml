@@ -85,17 +85,36 @@ jobs:
             TARGET="destination-branch/$DIR/$FILE" # sets destination file path for each playlist download
             HTTP_CODE=$(curl $CURL_FLAGS -R -L --fail -w "%{http_code}" -o "$TARGET" "$URL" || echo "000") # downloads the playlist using curl and captures the HTTP status code to verify download success
             EXIT_CODE=$?
-            curl -I "${{ env.SOURCE_PLAYLIST1a_URL }}"
-
-            
             
             # Sub-step 2a: Echo success/failure and key metrics for each download 
             if [ "$HTTP_CODE" = "200" ] && [ -f "$TARGET" ]; then # checks if playlist exists AND was actually updated/created during this specific workflow run            
+              API_STATUS="Skipped (non-GitHub URL)" # default values
+              TIME_NOTE="(Standard Download)" # default values
+              if [[ "$URL" == *"github.com"* ]]; then # logic for capturing remote commit date for downloads from github.com URLs
+                OWNER_REPO=$(echo "$URL" | sed -E 's|https://github.com([^/]+/[^/]+)/raw/[^/]+/.*|\1|') # extracts 'owner/repo' from a standard GitHub URL to call the API
+                FILE_PATH=$(echo "$URL" | sed -E 's|https://github.com[^/]+/[^/]+/raw/[^/]+/(.*)|\1|') # extracts 'path/to/file' from a standard GitHub URL to call the API
+                API_URL="https://api.github.com"
+                COMMIT_RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.PAT_FG_SYNC }}" "$API_URL")                
+                COMMIT_DATE=$(echo "$COMMIT_RESPONSE" | jq -r '..commit.committer.date' | head -n 1 || echo "") # call API and capture remote commit date 
+                if [ -n "$COMMIT_DATE" ] && [ "$COMMIT_DATE" != "null" ] && [ "$COMMIT_DATE" != "" ]; then
+                  touch -d "$COMMIT_DATE" "$TARGET" # manually sets the downloaded file's timestamp to match remote commit date
+                  MOD_TIME=$(TZ="Asia/Kolkata" date -d "$COMMIT_DATE" "+%d-%m-%Y %H:%M IST")
+                  API_STATUS="Success (commit: $COMMIT_DATE)"
+                  TIME_NOTE="(API Verified)"
+                else
+                  API_STATUS="Failed (could not parse date from API response)"
+                fi
+              fi
+              echo "DEBUG: API Check for $FILE -> $API_STATUS" # output API status for logging/debugging
+              if [ -z "$MOD_TIME" ]; then # if API check skipped or failed, use the file's current (or -R preserved) timestamp
+                EPOCH_TIME=$(stat -c '%Y' "$TARGET") # gets the downloaded file's modification time as a unix epoch timestamp
+                MOD_TIME=$(TZ="Asia/Kolkata" date -d "@$EPOCH_TIME" "+%d-%m-%Y %H:%M IST") # converts and formats epoch time to IST
+              fi              
               SIZE=$(stat -c%s "$TARGET") # calculates file size of such playlist
               COUNT=$(grep -c '#EXTINF' "$TARGET" || true) # counts number of #EXTINF lines in such playlist
-              EPOCH_TIME=$(stat -c '%Y' "$TARGET") # gets the downloaded file's modification time as a unix epoch timestamp
-              MOD_TIME=$(TZ="Asia/Kolkata" date -d "@$EPOCH_TIME" "+%d-%m-%Y %H:%M IST") # converts and formats epoch time to IST
-              echo "$FILE download : SUCCESS. Last updated $MOD_TIME. File size $SIZE bytes. $COUNT #EXTINF lines present."
+              echo "$FILE download : SUCCESS. Last updated $MOD_TIME $TIME_NOTE. File size $SIZE bytes. $COUNT #EXTINF lines present."
+              unset MOD_TIME # reset variables for next iteration
+              unset COMMIT_DATE # reset variables for next iteration
             else  
               echo "$FILE download : FAILED (HTTP: $HTTP_CODE, Exit: $EXIT_CODE)"
             fi
