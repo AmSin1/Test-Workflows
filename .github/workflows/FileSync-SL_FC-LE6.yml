@@ -83,8 +83,17 @@ jobs:
           for entry in "${PLAYLISTS[@]}"; do # iterates through the playlists array
             IFS="|" read -r URL DIR FILE <<< "$entry" # extracts data from the playlist array string using IFS pipe separator
             TARGET="destination-branch/$DIR/$FILE" # sets destination file path for each playlist download
-            HTTP_CODE=$(curl $CURL_FLAGS -L -R --fail -w "%{http_code}" -o "$TARGET" "$URL" || echo "000") # downloads the playlist using curl and captures the HTTP status code to verify download success
+            HTTP_CODE=$(curl $CURL_FLAGS -R -L --fail -w "%{http_code}" -o "$TARGET" "$URL" || echo "000") # downloads the playlist using curl and captures the HTTP status code to verify download success
             EXIT_CODE=$?
+            curl -I "${{ env.SOURCE_PLAYLIST1a_URL }}"
+            curl -I "${{ env.SOURCE_PLAYLIST1b_URL }}"
+            curl -I "${{ env.SOURCE_PLAYLIST1c_URL }}"
+            curl -I "${{ env.SOURCE_PLAYLIST2a_URL }}"
+            curl -I "${{ env.SOURCE_PLAYLIST2b_URL }}"
+            curl -I "${{ env.SOURCE_PLAYLIST2c_URL }}"
+            curl -I "${{ env.SOURCE_PLAYLIST2d_URL }}"
+
+            
             
             # Sub-step 2a: Echo success/failure and key metrics for each download 
             if [ "$HTTP_CODE" = "200" ] && [ -f "$TARGET" ]; then # checks if playlist exists AND was actually updated/created during this specific workflow run            
