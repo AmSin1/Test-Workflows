@@ -78,8 +78,8 @@ jobs:
           )
 
           # Step 2: Download playlists using curl command
-          METADATA_FILE="remote_timestamps.tmp" # initializes the metadata file file to record source playlists' latest remote update timestamps
-          touch "$METADATA_FILE"
+          METADATA_FILE="${{ github.workspace }}/remote_timestamps.tmp" # initializes the metadata file file to record source playlists' latest remote update timestamps
+          touch "$METADATA_FILE" # ensures the initialized file exists
           # Optional Curl configuration in next line:
           CURL_FLAGS="--retry 3 --retry-delay 1 --max-time 6 --no-progress-meter" # retry up to x times; delay of exactly x seconds between retries; total time for initial attempt + retries capped at x seconds
           for entry in "${PLAYLISTS[@]}"; do # iterates through the playlists array
@@ -131,7 +131,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playlist-metadata
-          path: remote_timestamps.tmp
+          path: ${{ github.workspace }}/remote_timestamps.tmp
+          if-no-files-found: error # forces this job to fail if the playlist-metadata file is missing
       
       - name: Commit Changes and Push to Destination Branch
         run: |
@@ -215,7 +216,8 @@ jobs:
       - name: Download Artifcat with Remote Timestamps Metadata
         uses: actions/download-artifact@v4
         with:
-          name: playlist-metadata  
+          name: playlist-metadata 
+          path: ${{ github.workspace }}
 
       - name: Process, Deduplicate, Format and Merge Playlists sequentially
         run: |
