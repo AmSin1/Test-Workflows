@@ -271,7 +271,7 @@ jobs:
                 else
                   EPOCH_DATE=$(stat -c %Y "$src_path") # case b: git log failed (likely a new file or shallow clone), fallback to local file timestamp (current workflow run time)
                   LAST_MOD=$(TZ='Asia/Kolkata' date -d "@$EPOCH_DATE" "+%d-%m-%Y %H:%M IST") # formats epoch to DD-MM-YYYY and applies IST timezone
-                  echo "DEBUG: git log failed for $src - falling back to current workflow run timestamp.
+                  echo "DEBUG: git log failed for $src - falling back to current workflow run timestamp."
                 fi
 
                 # function: awk for deduplication and custom formatting
