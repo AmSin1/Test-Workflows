@@ -278,12 +278,13 @@ jobs:
 
               # module: append streams from a cleaned input playlist to the merged playlist after deduplication, custom spacing and formatting; echo result
               local block_index=0 # block_index tracks which source m3u-block we are currently writing to
+              METADATA_FILE="${{ github.workspace }}/remote_timestamps.tmp"
               for src in "${sources[@]}"; do
                 local src_path="$dir/$src"
                 [ ! -f "$src_path" ] && continue
 
                 # fetch-timestamps
-                LAST_MOD=$(grep "^$src|" remote_timestamps.tmp | cut -d'|' -f2 || echo "Unknown Date") # capture the input playlist's remote timestamp from the metadata file
+                LAST_MOD=$(grep "^$src|" "$METADATA_FILE" | cut -d'|' -f2 || echo "Unknown Date") # capture the input playlist's remote timestamp from the metadata file
                 if [ "$LAST_MOD" = "Unknown Date" ]; then
                   EPOCH_DATE=$(stat -c %Y "$src_path") # fallback - if playlist is not found in metadata file, use current system timestamp
                   LAST_MOD=$(TZ='Asia/Kolkata' date -d "@$EPOCH_DATE" "+%d-%m-%Y %H:%M IST")
