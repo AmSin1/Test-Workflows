@@ -336,7 +336,7 @@ jobs:
                   END {
                     if (count > 0) { # custom spacing logic: block_index 0 = first block (no preceding space), block_index > 0 = subsequent blocks (2-line preceding space)
                       prefix = (idx == 0) ? "" : "\n\n" # if not the first block, prepend 2 empty lines
-                      printf "%s# Playlist from %s (last updated %s) : %d streams \n%s", prefix, src_name, mod_date, count, file_buf # add source identifier header + 1-line trail spacing
+                      printf "%s# Playlist from %s (last updated %s) : %d streams \n", prefix, src_name, mod_date, count # add source identifier header + 1-line trail spacing
                       printf "%s# Last updated %s \n\n%s", prefix, mod_date, count, file_buf # add remote update timestamp for the source playlist + 1-line trail spacing + content
                     }
                   }                 
