@@ -147,7 +147,7 @@ jobs:
                   -H "Authorization: Bearer ${{ secrets.PAT_FG_SYNC }}" \
                   -H "X-GitHub-Api-Version: 2022-11-28" \
                   -H "User-Agent: GitHub-Actions-FileSync" \
-                  "$API_URL" | jq -r '..commit.committer.date? | select(. != null)' 2>/dev/null || echo "") # captures the remote commit timestamp by querying GitHub API
+                  "$API_URL" | jq -r '.[0].commit.committer.date' 2>/dev/null || echo "") # captures the remote commit timestamp by querying GitHub API
                 [ -n "$REMOTE_DATE" ] && [ "$REMOTE_DATE" != "null" ] && TIME_NOTE="([✓]API verified)" # updates the timestamp tag
               else
 
@@ -170,7 +170,7 @@ jobs:
 
               # module: echo success/failure of each downloaded playlist with key metrics
               SIZE=$(stat -c%s "$TARGET") # calculates file size of downloaded playlist
-              COUNT=$(grep -c '#EXTINF' "$TARGET" || echo "0") # counts number of #EXTINF lines in downloaded playlist
+              COUNT=$(grep -c '#EXTINF' "$TARGET" || true) # counts number of #EXTINF lines in downloaded playlist
               echo "$FILE download : SUCCESS. Last updated $MOD_TIME $TIME_NOTE. File size $SIZE bytes. $COUNT #EXTINF lines present."
               echo "$DIR|$FILE|$SIZE|$COUNT|$MOD_TIME|$TIME_NOTE" >> "batch_${{ matrix.batch }}.meta" # record each playlist's result to metadata fragment (format: DIR|FILE|SIZE|COUNT|TIMESTAMP|TIMENOTE)   
             else
