@@ -100,15 +100,6 @@ jobs:
       matrix:
         batch: ${{ fromJson(needs.setup_playlist_matrix.outputs.batch_indices) }}       
     steps:
-      - name: Checkout Destination Branch in Destination Repo
-        uses: actions/checkout@v4
-        with:
-          repository: '${{ env.DESTINATION_REPO }}' # specify 'owner/repo' of the destination repo
-          ref: ${{ env.DESTINATION_BRANCH }}  # set the destination branch to checkout
-          fetch-depth: 0 # get full history to allow rebasing (recommended for every job that needs to commit and push back)
-          persist-credentials: false # REQUIRED if upstream repo is private (see wiki)
-          path: 'destination-branch'
-
       - name: Download Artifact with the Playlist Array
         uses: actions/download-artifact@v4
         with:
@@ -130,8 +121,8 @@ jobs:
             [ -z "$entry" ] && continue # boundary check for uneven batches
 
             IFS="|" read -r URL DIR FILE <<< "$entry" # extracts data from the playlist array using IFS pipe separator
-            TARGET="destination-branch/$DIR/$FILE" # sets destination file path for each playlist download
-            mkdir -p "destination-branch/$DIR" # creates destination directory if it doesn't already exist
+            TARGET="downloads/$DIR/$FILE" # sets temporary destination file path for each playlist download
+            mkdir -p "downloads/$DIR" # creates destination directory if it doesn't already exist
 
             # Sub-step 2a: Download playlists from source repos
             CURL_FLAGS="--connect-timeout 3 --retry 3 --retry-delay 1 --retry-max-time 10 --retry-all-errors --no-progress-meter" # optional curl flags
@@ -194,7 +185,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: meta-batch-${{ matrix.batch }}
-          path: batch_${{ matrix.batch }}.meta
+          path: |
+            downloads/
+            batch_${{ matrix.batch }}.meta
 
   consolidate_and_push: # create consolidated metadata file, echo group metrics, commit and push to destination branch
     needs: download_playlists
@@ -215,6 +208,7 @@ jobs:
         with:
           pattern: meta-batch-* # collects all parallel metadata pieces
           merge-multiple: true # flattens all fragments and reconstructs in the current folder
+          path: .
 
       - name: Create Consolidated Metadata File and Echo Group-Level Download Results
         run: |
@@ -245,6 +239,54 @@ jobs:
             echo "------------------------------------------------------------------------------------------------------------------------"
           done
 
+      - name: Commit Changes and Push to Destination Branch
+        run: |
+          cd destination-branch # changes current working directory to the destination branch
+
+          # Step 1: Move downloaded playlists to repo root
+          ls -R downloads/ # checks if the temporary folder exists
+          cp -r downloads/* . # moves the downloaded playlists from the temp folder to the repo root
+          rm -rf downloads batch_*.meta # cleanup the temporary download structure and any individual batch metadata before git add     
+
+          # Step 2: Configure git          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.PAT_FG_SYNC }}@://github.com{{ env.DESTINATION_REPO }}.git # avoids the alternative 'insteadOf' approach to prevent leakage of secret in logs
+          
+          # Step 3: Analyse downloaded playlists for final summary echos, and stage changed/new files for commit 
+          COMMITTED_NAMES=""; COMMITTED_COUNT=0; SKIPPED_NAMES=""; SKIPPED_COUNT=0; SUMMARY_DETAILS=""
+          while IFS="|" read -r DIR FILE SIZE COUNT TIMESTAMP NOTE; do
+            TARGET="$DIR/$FILE"
+            if [ -f "$TARGET" ]; then
+              if [[ -n $(git status --porcelain "$TARGET") ]]; then # uses git status to determine the file state
+                COMMITTED_NAMES+="$FILE " # playlist is changed or new and will be committed; adds to committed list
+                COMMITTED_COUNT=$((COMMITTED_COUNT + 1))
+                SUMMARY_DETAILS+="\n  - $FILE : last updated $TIMESTAMP $NOTE - $SIZE bytes with $COUNT #EXTINF lines"
+                git add "$TARGET" # stages only the changed/new files selectively based on the git status check 
+              else
+                SKIPPED_NAMES+="$FILE " # playlist is identical to the one in the repo and will not be committed; adds to skipped list
+                SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+                echo "RESULT: No changes found to commit for playlist $FILE."
+              fi
+            fi
+          done < ../remote_timestamps.meta
+
+          # Step 4: Commit changes, push to destination branch and echo final commit summaries  
+          if git diff --cached --quiet; then # checks if there are any changes
+            echo "----------------------------------------------------------------------------------------------------------"
+            echo "RESULT: No changes found to commit in any of the $SKIPPED_COUNT playlists. Skipping push."
+          else
+            git commit -m "Automated sync from source" # only commits if a binary or text difference exists, alongwith commit message
+            # git pull origin ${{ env.DESTINATION_BRANCH }} --rebase # rebases pull to ensure local is ahead of remote (enable if facing commit/push failures)
+            git push origin ${{ env.DESTINATION_BRANCH }} # pushes to the destination branch
+            echo "----------------------------------------------------------------------------------------------------------"
+            echo "RESULT: Successfully committed and pushed $COMMITTED_COUNT updated playlist(s)."
+            echo -e "Details: $SUMMARY_DETAILS"
+          fi
+          echo "----------------------------------------------------------------------------------------------------------"
+          echo "RESULT: $SKIPPED_COUNT playlist(s) were found unchanged and were skipped: $SKIPPED_NAMES"
+          echo "----------------------------------------------------------------------------------------------------------"
+
       - name: Upload Artifcat with Remote Timestamps Metadata
         uses: actions/upload-artifact@v4
         with:
@@ -252,70 +294,6 @@ jobs:
           path: ${{ github.workspace }}/remote_timestamps.meta # final source-of-truth for all remote commit timestamps
           if-no-files-found: error # forces this job to fail if the file is missing
 
-
-
-      
-      - name: Commit Changes and Push to Destination Branch
-        run: |
-          cd destination-branch # changes current working directory to the destination branch
-
-          # Step 1: Configure git          
-          git config url.https://${{ secrets.PAT_FG_SYNC }}@github.com/.insteadOf https://github.com/
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"  
-
-          # Step 2: Define the list of downloaded playlists for analysis
-          FILES=(
-            "${{ env.DESTINATION_DIR1_PATH }}/sl-le-1.m3u"
-            "${{ env.DESTINATION_DIR1_PATH }}/sl-le-2.m3u"
-            "${{ env.DESTINATION_DIR1_PATH }}/sl-le-3.m3u"
-            "${{ env.DESTINATION_DIR2_PATH }}/fc-le-1.m3u"
-            "${{ env.DESTINATION_DIR2_PATH }}/fc-le-2.m3u"
-            "${{ env.DESTINATION_DIR2_PATH }}/fc-le-3.m3u"
-            "${{ env.DESTINATION_DIR2_PATH }}/fc-le-4.m3u"
-          )
-
-          # Step 3: Iterate through the downloaded playlists to analyse using tracking variables for the final summary echos              
-          COMMITTED_NAMES=""
-          COMMITTED_COUNT=0
-          SKIPPED_NAMES=""
-          SKIPPED_COUNT=0
-          SUMMARY_DETAILS=""         
-          for FILE in "${FILES[@]}"; do
-            FILE_NAME=$(basename "$FILE")
-            if [ -f "$FILE" ]; then       
-              GIT_STATUS=$(git status --porcelain "$FILE") # uses git status to determine the file state
-              if [[ -z "$GIT_STATUS" ]]; then # if git status is empty, it means the file is unchanged/clean
-                SKIPPED_NAMES+="$FILE_NAME " # playlist is identical to the one in the repo and will not be committed; adds to skipped list
-                SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
-                echo "RESULT: No changes found to commit for playlist $FILE_NAME."
-              else
-                COMMITTED_NAMES+="$FILE_NAME " # playlist is changed or new and will be committed; adds to committed list and gathers metrics
-                COMMITTED_COUNT=$((COMMITTED_COUNT + 1))
-                SIZE=$(stat -c%s "$FILE") 
-                EXTINF=$(grep -c '#EXTINF' "$FILE" || true)
-                SUMMARY_DETAILS+="\n  - $FILE_NAME ($SIZE bytes): now has $EXTINF #EXTINF lines"
-                git add "$FILE" # stage only the changed/new files selectively based on the git status check         
-              fi
-            fi
-          done
-
-          # Step 4: Commit changes, push to destination branch and echo final commit summaries  
-          if git diff --cached --quiet; then # checks if there are any changes
-            echo "----------------------------------------------------------------------------------------------------------"
-            echo "RESULT: No changes found to commit in any playlists"
-          else
-            git commit -m "Automated sync from source" # only commits if a binary or text difference exists, alongwith commit message
-            # git pull origin ${{ env.DESTINATION_BRANCH }} --rebase # rebases pull to ensure local is ahead of remote (enable if facing commit/push failures)
-            git push origin ${{ env.DESTINATION_BRANCH }} # pushes to the destination branch
-            echo "----------------------------------------------------------------------------------------------------------"
-            echo "RESULT: Commits were made to $COMMITTED_COUNT playlist(s): $COMMITTED_NAMES"
-            echo -e "Details: $SUMMARY_DETAILS"
-          fi
-          echo "----------------------------------------------------------------------------------------------------------"
-          echo "RESULT: $SKIPPED_COUNT playlist(s) were found unchanged and were skipped: $SKIPPED_NAMES"
-          echo "----------------------------------------------------------------------------------------------------------"
-          
 
   
   create_merged_playlist: # creates custom-formatted deduplicated merged playlists with prioritized m3u comtent-blocks from input playlists
