@@ -171,7 +171,7 @@ jobs:
               # module: echo success/failure of each downloaded playlist with key metrics
               SIZE=$(stat -c%s "$TARGET") # calculates file size of downloaded playlist
               COUNT=$(grep -c '#EXTINF' "$TARGET" || true) # counts number of #EXTINF lines in downloaded playlist
-              echo "$FILE download : SUCCESS. Last updated $MOD_TIME $TIME_NOTE. File size $SIZE bytes. $COUNT #EXTINF lines present."
+              echo "$FILE download : SUCCESS. Last updated $MOD_TIME $TIME_NOTE. $SIZE bytes, $COUNT #EXTINF lines."
               echo "$DIR|$FILE|$SIZE|$COUNT|$MOD_TIME|$TIME_NOTE" >> "batch_${{ matrix.batch }}.meta" # record each playlist's result to metadata fragment (format: DIR|FILE|SIZE|COUNT|TIMESTAMP|TIMENOTE)   
             else
               echo "$FILE download : FAILED (HTTP: $HTTP_CODE)"
@@ -251,7 +251,7 @@ jobs:
           # Step 2: Configure git          
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin https://x-access-token:${{ secrets.PAT_FG_SYNC }}@://github.com{{ env.DESTINATION_REPO }}.git # avoids the alternative 'insteadOf' approach to prevent leakage of secret in logs
+          git remote set-url origin https://x-access-token:${{ secrets.PAT_FG_SYNC }}@github.com/{{ env.DESTINATION_REPO }}.git # avoids the alternative 'insteadOf' approach to prevent leakage of secret in logs
           
           # Step 3: Analyse downloaded playlists for final summary echos, and stage changed/new files for commit 
           COMMITTED_NAMES=""; COMMITTED_COUNT=0; SKIPPED_NAMES=""; SKIPPED_COUNT=0; SUMMARY_DETAILS=""
