@@ -234,7 +234,7 @@ jobs:
             done < <(grep "^$DIR|" remote_timestamps.meta)
             
             # Sub-step 1b: Echo group-level download results with key metrics
-            echo "RESULT for folder $DIR : Successfully downloaded "$S_COUNT playlists ($T_SIZE bytes). Total $T_EXTINF #EXTINF lines present."
+            echo "RESULT for folder $DIR : Successfully downloaded $S_COUNT playlists ($T_SIZE bytes). Total $T_EXTINF #EXTINF lines present."
             echo "RESULT for folder $DIR : Failed to download $F_COUNT playlists - ${F_NAMES:-None}."
             echo "------------------------------------------------------------------------------------------------------------------------"
           done
