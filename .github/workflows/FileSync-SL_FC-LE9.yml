@@ -180,7 +180,7 @@ jobs:
             unset MOD_TIME # clears for next iteration
           done
 
-      - name: Upload Artifact with Metadata Fragment
+      - name: Upload Artifact with Metadata Fragments
         if: always() # ensures metadata is uploaded even if some downloads in the batch fail
         uses: actions/upload-artifact@v4
         with:
@@ -234,26 +234,27 @@ jobs:
             done < <(grep "^$DIR|" remote_timestamps.meta)
             
             # Sub-step 1b: Echo group-level download results with key metrics
-            echo "RESULT for folder $DIR : Successfully downloaded $S_COUNT playlists ($T_SIZE bytes). Total $T_EXTINF #EXTINF lines present."
-            echo "RESULT for folder $DIR : Failed to download $F_COUNT playlists - ${F_NAMES:-None}."
+            echo "RESULT for folder $DIR : successfully downloaded $S_COUNT playlists ($T_SIZE bytes). Total $T_EXTINF #EXTINF lines present."
+            echo "RESULT for folder $DIR : failed to download $F_COUNT playlists (${F_NAMES:-none})."
             echo "------------------------------------------------------------------------------------------------------------------------"
           done
 
       - name: Commit Changes and Push to Destination Branch
         run: |
-          cd destination-branch # changes current working directory to the destination branch
-
-          # Step 1: Move downloaded playlists to repo root
+          # Step 1: Move downloaded playlists to destination branch
           ls -R downloads/ # checks if the temporary folder exists
-          cp -r downloads/* . # moves the downloaded playlists from the temp folder to the repo root
-          rm -rf downloads batch_*.meta # cleanup the temporary download structure and any individual batch metadata before git add     
+          cp -r downloads/* destination-branch/ # moves the downloaded playlists from the temp folder to the destination branch
 
-          # Step 2: Configure git          
+          # Step 2: Enter destination directory and cleanup temporary files
+          cd destination-branch # changes current working directory to the destination branch
+          rm -rf ../downloads ../batch_*.meta # cleanup the temporary download structure and any individual batch metadata before git add     
+
+          # Step 3: Configure git          
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${{ secrets.PAT_FG_SYNC }}@github.com/{{ env.DESTINATION_REPO }}.git # avoids the alternative 'insteadOf' approach to prevent leakage of secret in logs
           
-          # Step 3: Analyse downloaded playlists for final summary echos, and stage changed/new files for commit 
+          # Step 4: Analyse downloaded playlists for final summary echos, and stage changed/new files for commit 
           COMMITTED_NAMES=""; COMMITTED_COUNT=0; SKIPPED_NAMES=""; SKIPPED_COUNT=0; SUMMARY_DETAILS=""
           while IFS="|" read -r DIR FILE SIZE COUNT TIMESTAMP NOTE; do
             TARGET="$DIR/$FILE"
@@ -271,7 +272,7 @@ jobs:
             fi
           done < ../remote_timestamps.meta
 
-          # Step 4: Commit changes, push to destination branch and echo final commit summaries  
+          # Step 5: Commit changes, push to destination branch and echo final commit summaries  
           if git diff --cached --quiet; then # checks if there are any changes
             echo "----------------------------------------------------------------------------------------------------------"
             echo "RESULT: No changes found to commit in any of the $SKIPPED_COUNT playlists. Skipping push."
