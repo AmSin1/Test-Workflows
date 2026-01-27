@@ -505,7 +505,9 @@ jobs:
                   fi
               fi
           done             
-          echo "TOTAL_FAILURES=$TOTAL_GROUP_FAILURES" >> $GITHUB_ENV # exports failure count to GitHub environment for final job status
+          
+          # Step 3: Export failure count to GitHub environment for final job status
+          echo "TOTAL_FAILURES=$TOTAL_GROUP_FAILURES" >> $GITHUB_ENV 
 
       - name: Commit Changes and Push Merged Playlists to Destination Branch
         run: |
