@@ -401,7 +401,7 @@ jobs:
             (
               set -e # ensures that subshell exits on critical command failure
               local target="$dir/$output"
-              local TRACKER="/tmp/seen_${output}.tmp" # creates a unique temp tracker for this group's deduplication
+              local TRACKER="/tmp/seen_${output}_$(date +%s).tmp" # creates a unique temp tracker for this group's deduplication
 
               # module: initialize merged playlist
               echo "#EXTM3U" > "$target" # initializes the merged playlist with standard EXTM3U header
