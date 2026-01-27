@@ -458,7 +458,7 @@ jobs:
                     if (count > 0) { # custom spacing logic: block_index 0 = first block (no preceding space), block_index > 0 = subsequent blocks (2-line preceding space)
                       prefix = (idx == 0) ? "" : "\n\n" # if not the first block, prepend 2 empty lines
                       printf "%s# Playlist from %s : %d stream(s) \n", prefix, src_name, count # add source identifier header
-                      printf "# (last updated %s) \n\n%s", mod_date, file_buf # add remote update timestamp for the source playlist + 1-line trail spacing + content
+                      printf "# [last updated %s] \n\n%s", mod_date, file_buf # add remote update timestamp for the source playlist + 1-line trail spacing + content
                     }
                   }                 
                 ' "$src_path" >> "$target" # appends input playlists to the merged playlist using the awk logic
