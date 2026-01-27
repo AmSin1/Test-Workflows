@@ -415,7 +415,7 @@ jobs:
                 [ ! -f "$src_path" ] && continue
 
                 # sub-module: fetch-timestamps for the block-level header (similar logic to cleaning stage)
-                local meta_entry=$(grep "|$src|" "$METADATA_FILE" || echo "")
+                local meta_entry=$(grep "|$src|" "$PLAYLIST_METADATA" || echo "")
                 local LAST_MOD=""
                 if [[ -n "$meta_entry" && "$(echo "$meta_entry" | cut -d'|' -f3)" != "FAILED" ]]; then
                   LAST_MOD="$(echo "$meta_entry" | cut -d'|' -f5) $(echo "$meta_entry" | cut -d'|' -f6)"
@@ -487,17 +487,25 @@ jobs:
           }
 
           # Step 2: Dynamic execution loop (using indirect expansion) for playlist groups
-          
-          
-          
-          
-          
-          
-          
-          process_group "${{ env.DESTINATION_DIR1_PATH }}" "${{ env.MERGED_PLAYLIST1 }}" "sl-le-1.m3u" "sl-le-2.m3u" "sl-le-3.m3u" || TOTAL_GROUP_FAILURES=$((TOTAL_GROUP_FAILURES + 1))
-          process_group "${{ env.DESTINATION_DIR2_PATH }}" "${{ env.MERGED_PLAYLIST2 }}" "fc-le-1.m3u" "fc-le-2.m3u" "fc-le-3.m3u" "fc-le-4.m3u" || TOTAL_GROUP_FAILURES=$((TOTAL_GROUP_FAILURES + 1))
-
-          echo "TOTAL_FAILURES=$TOTAL_GROUP_FAILURES" >> $GITHUB_ENV # export result to GitHub environment
+          DIRS=$(cut -d'|' -f1 "$PLAYLIST_METADATA" | sort -u) # extracts all unique directories in the consolidated metadata file
+          for DIR in $DIRS; do # maps the identified directories to merged playlist names
+              VAR_SUFFIX=$(echo "$DIR" | tr '-' '_') # creates suffix for the lookup variable from directory name (e.g., sl-le -> sl_le)
+              LOOKUP_VAR="MERGED_PLAYLIST_$VAR_SUFFIX" # constructs the lookup variable (e.g., sl-le -> MERGED_PLAYLIST_sl_le)
+              OUTPUT_NAME="${!LOOKUP_VAR}" # indirect expansion to get the variable value (e.g., "sl-le-all.m3u")
+              if [ -z "$OUTPUT_NAME" ]; then $ skips the folder (e.g., sl-le) if its merged playlist variable (e.g., MERGED_PLAYLIST_sl_le) hasn't been defined in the 'env:'
+                echo "DEBUG: Skipping group $DIR - no 'env.$LOOKUP_VAR' defined."
+                continue
+              fi
+              mapfile -t FILES_FOR_GROUP < <(grep "^$DIR|" "$PLAYLIST_METADATA" | cut -d'|' -f2) # extracts only the input playlist names belonging to current group, and puts these filenames into an array
+              if [ ${#FILES_FOR_GROUP[@]} -gt 0 ]; then # checks if any input playlists for this group were actually found
+                  if process_group "$DIR" "$OUTPUT_NAME" "${FILES_FOR_GROUP[@]}"; then # calls the 'process_group' function with the dynamic folder, merged playlist name, and input playlist array
+                      echo "$DIR/$OUTPUT_NAME" >> ../merged_files_to_commit.txt # registers the successfully merged playlist for the commit step
+                  else
+                      TOTAL_GROUP_FAILURES=$((TOTAL_GROUP_FAILURES + 1)) # increments the global error counter everytime the merge function fails 
+                  fi
+              fi
+          done             
+          echo "TOTAL_FAILURES=$TOTAL_GROUP_FAILURES" >> $GITHUB_ENV # exports failure count to GitHub environment for final job status
 
       - name: Commit Changes and Push Merged Playlists to Destination Branch
         run: |
