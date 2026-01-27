@@ -557,11 +557,11 @@ jobs:
             # git pull origin ${{ env.DESTINATION_BRANCH }} --rebase # rebases pull to ensure local is ahead of remote (enable if facing commit/push failures)
             git push origin ${{ env.DESTINATION_BRANCH }} # pushes to the destination branch
             echo "------------------------------------------------------------------------------------------------------------------------"
-            echo "RESULT: Commits were made to $COMMITTED_COUNT merged playlist(s): $COMMITTED_NAMES"
+            echo "RESULT: Commits were made to $COMMITTED_COUNT merged playlist(s): ${COMMITTED_NAMES:-(none)}"
             echo -e "Details: $SUMMARY_DETAILS"
           fi
           echo "------------------------------------------------------------------------------------------------------------------------"
-          echo "RESULT: $SKIPPED_COUNT merged playlist(s) were found unchanged and were skipped: $SKIPPED_NAMES"
+          echo "RESULT: $SKIPPED_COUNT merged playlist(s) were found unchanged and were skipped: ${SKIPPED_NAMES:-(none)}"
           echo "------------------------------------------------------------------------------------------------------------------------"
           
           # Step 5: Final job failure reporting         
