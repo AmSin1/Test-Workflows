@@ -366,7 +366,7 @@ jobs:
                 # sub-module: for input playlist successfully downloaded in this workflow run, extract from condolidated metadata file
                 local ts=$(echo "$meta_entry" | cut -d'|' -f5) # extracts field 5 (remote timestamp) 
                 local note=$(echo "$meta_entry" | cut -d'|' -f6) # extracts field 6 (time note)
-                LAST_MOD="$ts $note"
+                LAST_MOD="$ts $note" combines remote timestamp and time note
               else
                 # sub-module: for input playlist not downloaded in this worflow run, fallback to timestamp of the existing file in the repo
                 local ts=$(TZ='Asia/Kolkata' date -r "$src_path" "+%d-%m-%Y %H:%M IST")
@@ -492,7 +492,7 @@ jobs:
               VAR_SUFFIX=$(echo "$DIR" | tr '-' '_') # creates suffix for the lookup variable from directory name (e.g., sl-le -> sl_le)
               LOOKUP_VAR="MERGED_PLAYLIST_$VAR_SUFFIX" # constructs the lookup variable (e.g., sl-le -> MERGED_PLAYLIST_sl_le)
               OUTPUT_NAME="${!LOOKUP_VAR}" # indirect expansion to get the variable value (e.g., "sl-le-all.m3u")
-              if [ -z "$OUTPUT_NAME" ]; then $ skips the folder (e.g., sl-le) if its merged playlist variable (e.g., MERGED_PLAYLIST_sl_le) hasn't been defined in the 'env:'
+              if [ -z "$OUTPUT_NAME" ]; then # skips the folder (e.g., sl-le) if its merged playlist variable (e.g., MERGED_PLAYLIST_sl_le) hasn't been defined in the 'env:'
                 echo "DEBUG: Skipping group $DIR - no 'env.$LOOKUP_VAR' defined."
                 continue
               fi
