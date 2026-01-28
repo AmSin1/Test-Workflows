@@ -1,7 +1,7 @@
 # This workflow is configired to be trigerred manually from GitHUb WebUI or by an external cronjob scheduler service
-# This GitHub Action has 3 jobs:
+# This workflow has 3 jobs:
 # 1) copies specified playlists from source repo and overwrites corresponding specified playlists in destination branch/directory in destination repo
-# 2) creates a custom-formatted deduplicated merged playlist with prioritized m3u comtent-blocks from already copied source playlists
+# 2) creates custom-formatted deduplicated merged playlists with prioritized m3u comtent-blocks from already copied source playlists
 # 3) echos the input message identifying source of workflow trigger (manual via WebUI or automated external cronjob service)
 # Works for copying from any branch of a public source repo into any branch of a public/private destination repo
 # The .yml file may be placed in any 3rd public/private repo (non-source, non-destination)(say, control repo) in its default (i.e. main) branch at the 'github/workflows/' directory
