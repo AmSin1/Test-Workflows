@@ -8,7 +8,7 @@
 # Need to use Personal Access Token (PAT) for commiting and pushing to destination repo - create a PAT Classic (with workflow permissions) or PAT Fine-grained (with actions(R/W), contents(code)(R/W), pull requests(R/W) and workflows(R/W) permissions)
 # Store PAT Classic or PAT Fine-grained token's value in the control repo's secrets with names PAT_CL_SYNC or PAT_FG_SYNC
 
-name: FileSync LE Alt
+name: SyncMerge LE Alt
 
 on: 
   workflow_dispatch: # allows manual workflow run from the Actions tab (workflow must be in default branch to work)
