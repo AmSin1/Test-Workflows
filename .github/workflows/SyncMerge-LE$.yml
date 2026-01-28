@@ -24,25 +24,6 @@ on:
       
 env:
   CRONJOB_SERVICE: "FastCron"
-  # Destination Repo Configuration
-  DESTINATION_REPO_URL: "https://github.com/AmSin1/Repo.git"
-  DESTINATION_REPO: "AmSin1/Repo"
-  DESTINATION_BRANCH: "autocopied"
-  # Group 1 : Source URLs, Directory Path and Merged Playlist
-  DESTINATION_DIR1_PATH: "sl-le"
-  MERGED_PLAYLIST_sl_le: "sl-le-all.m3u"
-  SOURCE_PLAYLIST1a_URL: "https://github.com/doctor-8trange/zyphora/raw/main/data/sony.m3u" # source updated and working
-  SOURCE_PLAYLIST1b_URL: "https://github.com/drmlive/sliv-live-events/raw/main/sonyliv.m3u" # sporce updated and working
-  SOURCE_PLAYLIST1c_URL: "https://github.com/abusaeeidx/SonyLiv-Event-Auto-update/raw/main/sonyliv.m3u" # source NOT updated
-  SOURCE_PLAYLIST1d_URL:
-  # Group 2 : Source URLs, Directory Path and Merged Playlist
-  DESTINATION_DIR2_PATH: "fc-le"
-  MERGED_PLAYLIST_fc_le: "fc-le-all.m3u"
-  SOURCE_PLAYLIST2a_URL: "https://github.com/jitendra-unatti/fancode/raw/main/data/fancode.m3u" # source updated and working
-  SOURCE_PLAYLIST2b_URL: "https://github.com/drmlive/fancode-live-events/raw/main/fancode.m3u" # source updated and working
-  SOURCE_PLAYLIST2c_URL: "https://github.com/IPTVFlixBD/Fancode-BD/raw/main/playlist.m3u" # source updated and working
-  SOURCE_PLAYLIST2d_URL: "https://github.com/abusaeeidx/CrestSport-IPTV-Collection/raw/main/fncbd.m3u" # source updated and working
-  SOURCE_PLAYLIST2e_URL:
 
 concurrency: # ensures that only one GitHub workflow runs at a time for a specific branch in a repo, prevents conditions where two separate workflow runs attempt to push to same branch simultaneously
   group: sync-${{ github.head_ref || github.ref_name }}
@@ -54,6 +35,26 @@ jobs:
     permissions:
       contents: write # grants permissions for the job to write to contents
     steps:
+      - name: Validate and Load JSON Config from Repo Secrets
+        shell: bash
+        env:
+          CONFIG_JSON: ${{ secrets.ENV_VARIABLES_LE }}
+        run: |
+          # Step 1: Validate JSON syntax
+          if ! echo "$CONFIG_JSON" | jq empty; then
+            echo "ERROR: INVALID JSON detected in repo secret! Check syntax for missing brackets or trailing commas."
+            exit 1
+          fi          
+          
+          # Step 2: Export JSON keys/values to GitHub environment
+          echo "$CONFIG_JSON" | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> $GITHUB_ENV # extracts all keys and values and writes them to the global $GITHUB_ENV
+          echo "SUCCESS: JSON configuration validated and loaded into GitHub environment."
+          
+          # Step 3: Mask individual variables for public log security
+          echo "$CONFIG_JSON" | jq -r '.[]' | while read -r value; do
+            [ -n "$value" ] && echo "::add-mask::$value" # ensures that even after parsing, individual parsed variables are masked as '***' in logs
+          done
+      
       - name: Checkout Destination Branch in Destination Repo
         uses: actions/checkout@v4
         with:
@@ -235,6 +236,26 @@ jobs:
     permissions:
       contents: write # grants permissions for the job to write to contents
     steps:          
+      - name: Validate and Load JSON Config from Repo Secrets
+        shell: bash
+        env:
+          CONFIG_JSON: ${{ secrets.ENV_VARIABLES_LE }}
+        run: |
+          # Step 1: Validate JSON syntax
+          if ! echo "$CONFIG_JSON" | jq empty; then
+            echo "ERROR: INVALID JSON detected in repo secret! Check syntax for missing brackets or trailing commas."
+            exit 1
+          fi          
+          
+          # Step 2: Export JSON keys/values to GitHub environment
+          echo "$CONFIG_JSON" | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> $GITHUB_ENV # extracts all keys and values and writes them to the global $GITHUB_ENV
+          echo "SUCCESS: JSON configuration validated and loaded into GitHub environment."
+          
+          # Step 3: Mask individual variables for public log security
+          echo "$CONFIG_JSON" | jq -r '.[]' | while read -r value; do
+            [ -n "$value" ] && echo "::add-mask::$value" # ensures that even after parsing, individual parsed variables are masked as '***' in logs
+          done
+
       - name: Checkout Destination Branch in Destination Repo
         uses: actions/checkout@v4
         with:
