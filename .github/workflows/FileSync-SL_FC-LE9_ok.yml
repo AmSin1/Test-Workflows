@@ -290,7 +290,7 @@ jobs:
           echo "RESULT: $SKIPPED_COUNT playlist(s) were found unchanged and were skipped: ${SKIPPED_NAMES:-(none)}"
           echo "------------------------------------------------------------------------------------------------------------------------"
 
-      - name: Upload Artifcat with Remote Timestamps Metadata
+      - name: Upload Artifact with Remote Timestamps Metadata
         uses: actions/upload-artifact@v4
         with:
           name: playlist-metadata
@@ -315,7 +315,7 @@ jobs:
           persist-credentials: false # REQUIRED if upstream repo is private (see wiki)
           path: 'destination-branch'
 
-      - name: Download Artifcat with Remote Timestamps Metadata
+      - name: Download Artifact with Remote Timestamps Metadata
         uses: actions/download-artifact@v4
         with:
           name: playlist-metadata 
