@@ -223,7 +223,7 @@ jobs:
           for DIR in $DIRS; do
             S_COUNT=0; T_EXTINF=0; T_SIZE=0; F_COUNT=0; F_NAMES=""
             
-            # Sub-step 1a: Aggregate group-level download stats for this specific folder
+            # Sub-step 2a: Aggregate group-level download stats for this specific folder
             while IFS="|" read -r f_dir f_name f_size f_extinf f_time f_note; do
               if [ "$f_size" = "FAILED" ]; then
                 F_COUNT=$((F_COUNT + 1)) # count of playlists for which download failed 
@@ -235,7 +235,7 @@ jobs:
               fi
             done < <(grep "^$DIR|" remote_timestamps.meta)
             
-            # Sub-step 1b: Echo group-level download results with key metrics
+            # Sub-step 2b: Echo group-level download results with key metrics
             echo "RESULT for folder $DIR : successfully downloaded $S_COUNT playlists ($T_SIZE bytes). Total $T_EXTINF #EXTINF lines present."
             echo "RESULT for folder $DIR : failed to download $F_COUNT playlists: ${F_NAMES:-(none)}"
             echo "------------------------------------------------------------------------------------------------------------------------"
