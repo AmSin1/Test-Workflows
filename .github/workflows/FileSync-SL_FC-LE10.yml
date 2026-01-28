@@ -24,17 +24,20 @@ on:
       
 env:
   CRONJOB_SERVICE: "FastCron"
+  # Destination Repo Configuration
   DESTINATION_REPO_URL: "https://github.com/AmSin1/Repo.git"
   DESTINATION_REPO: "AmSin1/Repo"
   DESTINATION_BRANCH: "autocopied"
+  # Group 1 : Source URLs, Directory Path and Merged Playlist
   DESTINATION_DIR1_PATH: "sl-le"
-  MERGED_PLAYLIST1: "sl-le-all.m3u"
+  MERGED_PLAYLIST_sl_le: "sl-le-all.m3u"
   SOURCE_PLAYLIST1a_URL: "https://github.com/doctor-8trange/zyphora/raw/main/data/sony.m3u" # source updated and working
   SOURCE_PLAYLIST1b_URL: "https://github.com/drmlive/sliv-live-events/raw/main/sonyliv.m3u" # sporce updated and working
   SOURCE_PLAYLIST1c_URL: "https://github.com/abusaeeidx/SonyLiv-Event-Auto-update/raw/main/sonyliv.m3u" # source NOT updated
   SOURCE_PLAYLIST1d_URL:
+  # Group 2 : Source URLs, Directory Path and Merged Playlist
   DESTINATION_DIR2_PATH: "fc-le"
-  MERGED_PLAYLIST2: "fc-le-all.m3u"
+  MERGED_PLAYLIST_fc_le: "fc-le-all.m3u"
   SOURCE_PLAYLIST2a_URL: "https://github.com/jitendra-unatti/fancode/raw/main/data/fancode.m3u" # source updated and working
   SOURCE_PLAYLIST2b_URL: "https://github.com/drmlive/fancode-live-events/raw/main/fancode.m3u" # source updated and working
   SOURCE_PLAYLIST2c_URL: "https://github.com/IPTVFlixBD/Fancode-BD/raw/main/playlist.m3u" # source updated and working
@@ -46,7 +49,7 @@ concurrency: # ensures that only one GitHub workflow runs at a time for a specif
   cancel-in-progress: false # 'false' ensures that a newly-started workflow runs sequentially after and does not terminate a still in-progress workflow run, ensuring that every workflow's changes are eventually pushed
 
 jobs:   
-  copy_source_playlists: # copies specified playlists from source repos and overwrites corresponding specified playlists in destination branch/directories in destination repo
+  download_playlists: # copies specified playlists from source repos and overwrites corresponding specified playlists in destination branch/directories in destination repo
     runs-on: ubuntu-latest
     permissions:
       contents: write # grants permissions for the job to write to contents
@@ -62,34 +65,97 @@ jobs:
 
       - name: Download Playlists from Source Repos  
         run: |
-          START_TIME=$(date +%s) # records the start time of this run in seconds (for comparison)
+          ? START_TIME=$(date +%s) # records the start time of this run in seconds (for comparison)
           mkdir -p destination-branch/${{ env.DESTINATION_DIR1_PATH }} # creates destination directory if it doesn't already exist
           mkdir -p destination-branch/${{ env.DESTINATION_DIR2_PATH }} # creates destination directory if it doesn't already exist
 
           # Step 1: Define the playlist array
-          PLAYLISTS=( # defines the list of playlists to process in a pipe-separated array (URL|DIR|FILE)
-            "${{ env.SOURCE_PLAYLIST1a_URL }}|${{ env.DESTINATION_DIR1_PATH }}|sl-le-1.m3u"
-            "${{ env.SOURCE_PLAYLIST1b_URL }}|${{ env.DESTINATION_DIR1_PATH }}|sl-le-2.m3u"
-            "${{ env.SOURCE_PLAYLIST1c_URL }}|${{ env.DESTINATION_DIR1_PATH }}|sl-le-3.m3u"
-            "${{ env.SOURCE_PLAYLIST2a_URL }}|${{ env.DESTINATION_DIR2_PATH }}|fc-le-1.m3u"
-            "${{ env.SOURCE_PLAYLIST2b_URL }}|${{ env.DESTINATION_DIR2_PATH }}|fc-le-2.m3u"
-            "${{ env.SOURCE_PLAYLIST2c_URL }}|${{ env.DESTINATION_DIR2_PATH }}|fc-le-3.m3u"
-            "${{ env.SOURCE_PLAYLIST2d_URL }}|${{ env.DESTINATION_DIR2_PATH }}|fc-le-4.m3u"
+          LIST=$(cat <<EOF # defines the list of playlists to process in a pipe-separated array (URL|DIR|FILE)
+          ${{ env.SOURCE_PLAYLIST1a_URL }}|${{ env.DESTINATION_DIR1_PATH }}|sl-le-1.m3u
+          ${{ env.SOURCE_PLAYLIST1b_URL }}|${{ env.DESTINATION_DIR1_PATH }}|sl-le-2.m3u
+          ${{ env.SOURCE_PLAYLIST1c_URL }}|${{ env.DESTINATION_DIR1_PATH }}|sl-le-3.m3u
+          ${{ env.SOURCE_PLAYLIST2a_URL }}|${{ env.DESTINATION_DIR2_PATH }}|fc-le-1.m3u
+          ${{ env.SOURCE_PLAYLIST2b_URL }}|${{ env.DESTINATION_DIR2_PATH }}|fc-le-2.m3u
+          ${{ env.SOURCE_PLAYLIST2c_URL }}|${{ env.DESTINATION_DIR2_PATH }}|fc-le-3.m3u
+          ${{ env.SOURCE_PLAYLIST2d_URL }}|${{ env.DESTINATION_DIR2_PATH }}|fc-le-4.m3u
+          EOF
           )
 
-          # Step 2: Download playlists and sync remote timestamps
+          # Step 2: Initialize the metadata file 
           METADATA_FILE="${{ github.workspace }}/remote_timestamps.meta" # initializes the metadata file file to record source playlists' latest remote update timestamps
           touch "$METADATA_FILE" # ensures the initialized file exists
-          for entry in "${PLAYLISTS[@]}"; do # iterates through the playlists array
-           
-            # Sub-step 2a: Parse the playlist array
-            IFS="|" read -r URL DIR FILE <<< "$entry" # extracts data from the playlist array string using IFS pipe separator
+
+          # Step 3: Download playlists and sync remote timestamps
+          echo "$LIST" | while IFS="|" read -r URL DIR FILE; do # extracts data from the playlist array string using IFS pipe separator
+            [ -z "$URL" ] && continue
             TARGET="destination-branch/$DIR/$FILE" # sets destination file path for each playlist download
+            mkdir -p "destination-branch/$DIR" # creates destination directory if it doesn't already exist
+
+            # Sub-step 3a: Download each playlist from source repos
+            CURL_FLAGS="--connect-timeout 3 --retry 3 --retry-delay 1 --retry-max-time 10 --retry-all-errors --no-progress-meter" # optional curl flags
+            HTTP_CODE=$(curl $CURL_FLAGS -R -L --fail \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -H "User-Agent: FileSync-Batch-2026" \
+              -o "$TARGET" -w "%{http_code}" "$URL" || echo "000") # downloads the playlist using curl and captures the HTTP status code to verify download success
+
+
+
+            # Sub-step 3b: Fetch and sync remote commit timestamp, and echo success/failure with key metrics for each download
+            if [ "$HTTP_CODE" = "200" ] && [ -f "$TARGET" ]; then # checks if playlist exists AND was actually downloaded during this specific workflow run
+         
+              # module: fetch remote commit timestamps
+              REMOTE_DATE="" # starts afresh for this iteration
+              TIME_NOTE="(standard download)" # default value
+              if [[ "$URL" == *"github.com"* ]] || [[ "$URL" == *"githubusercontent.com"* ]]; then
             
-            # Sub-step 2b: Download the playlist
-            CURL_FLAGS="--retry 3 --retry-delay 1 --max-time 6 --no-progress-meter" # optional flags - retry up to x times; delay of exactly x seconds between retries; total time for initial attempt + retries capped at x seconds
-            HTTP_CODE=$(curl $CURL_FLAGS -R -L --fail -w "%{http_code}" -o "$TARGET" "$URL" || echo "000") # downloads the playlist using curl and captures the HTTP status code to verify download success
-            EXIT_CODE=$?
+                # sub-module: for downloads from GitHub URLs, capture remote commit timestamps from GitHub API 
+                OWNER_REPO=$(echo "$URL" | sed -E 's|https://(github.com\|raw.githubusercontent.com)/([^/]+/[^/]+).*|\2|') # extracts 'owner/repo' to call the GitHub API
+                FILE_PATH=$(echo "$URL" | sed -E 's|https://(github.com\|raw.githubusercontent.com)/[^/]+/[^/]+/(blob/\|raw/)?([^/]+/)?(.*)|\4|') # extracts 'path/to/file' to call the GitHub API
+                API_URL="https://api.github.com/repos/${OWNER_REPO}/commits?path=${FILE_PATH}&per_page=1" # sets the URL to target the playlist's commit history
+                REMOTE_DATE=$(curl -s \
+                  -H "Authorization: Bearer ${{ secrets.PAT_FG_SYNC }}" \
+                  -H "X-GitHub-Api-Version: 2022-11-28" \
+                  -H "User-Agent: GitHub-Actions-FileSync" \
+                  "$API_URL" | jq -r '.[0].commit.committer.date' 2>/dev/null || echo "") # captures the remote commit timestamp by querying GitHub API
+                [ -n "$REMOTE_DATE" ] && [ "$REMOTE_DATE" != "null" ] && TIME_NOTE="([✓]API verified)" # updates the timestamp tag
+              else
+                # sub-module: for downloads from non-GitHub URLs, fallback to capturing remote commit timestamps from HTTP header   
+                HEADER_VAL=$(curl -sI "$URL" | grep -i 'Last-Modified:' | cut -d':' -f2- | xargs) # captures the remote commit timestamp from the remote file's header metadata
+                if [ -n "$HEADER_VAL" ]; then
+                  REMOTE_DATE=$(date -d "$HEADER_VAL" -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null)
+                  TIME_NOTE="([✓]header verified)" # updates the timestamp tag
+                fi
+              fi
+              
+              # module: sync remote commit timestamps
+              if [ -n "$REMOTE_DATE" ] && [ "$REMOTE_DATE" != "null" ]; then
+                touch -d "$REMOTE_DATE" "$TARGET" # manually syncs the downloaded file's timestamp to match remote commit date
+                MOD_TIME=$(TZ="Asia/Kolkata" date -d "$REMOTE_DATE" "+%d-%m-%Y %H:%M IST") # formats and converts timestamp to IST
+              else
+                MOD_TIME=$(TZ="Asia/Kolkata" date -r "$TARGET" "+%d-%m-%Y %H:%M IST") # fallback to downloaded playlist's local commit (workflow run) timestamp in case fetching of remote timestamp via GitHub API or HTTP header fails
+                TIME_NOTE="([x]download time)" # updates the timestamp tag
+              fi
+              
+              # module: echo success/failure of each downloaded playlist with key metrics
+              SIZE=$(stat -c%s "$TARGET") # calculates file size of downloaded playlist
+              COUNT=$(grep -c '#EXTINF' "$TARGET" || true) # counts number of #EXTINF lines in downloaded playlist
+              echo "$FILE download : SUCCESS. Last updated $MOD_TIME $TIME_NOTE. $SIZE bytes, $COUNT #EXTINF lines."
+              echo "$DIR|$FILE|$SIZE|$COUNT|$MOD_TIME|$TIME_NOTE" >> "batch_${{ matrix.batch }}.meta" # record each playlist's result to metadata fragment (format: DIR|FILE|SIZE|COUNT|TIMESTAMP|TIMENOTE)   
+            else
+              echo "$FILE download : FAILED (HTTP: $HTTP_CODE)"
+              echo "$DIR|$FILE|FAILED|0|N/A|N/A" >> "batch_${{ matrix.batch }}.meta"
+            fi
+            unset MOD_TIME # clears for next iteration
+          done
+
+
+
+
+
+
+
+
+
             
             # Sub-step 2c: Sync remote commit timestamp and echo success/failure with key metrics for each download 
             if [ "$HTTP_CODE" = "200" ] && [ -f "$TARGET" ]; then # checks if playlist exists AND was actually updated/created during this specific workflow run            
@@ -97,7 +163,7 @@ jobs:
               TIME_NOTE="(Standard Download)" # default values
               MOD_TIME="" # start afresh for this iteration
               
-              # module: fetch and sync remote commit timestamps
+              # module: fetch and sync remote commit timestamp
               if [[ "$URL" == *"github.com"* ]]; then # logic for capturing remote commit date for downloads from github.com URLs
                 OWNER_REPO=$(echo "$URL" | sed -E 's|https://(github.com\|raw.githubusercontent.com)/([^/]+/[^/]+).*|\2|') # extracts 'owner/repo' from a standard GitHub URL to call the API
                 FILE_PATH=$(echo "$URL" | sed -E 's|https://(github.com\|raw.githubusercontent.com)/[^/]+/[^/]+/(blob/\|raw/)?([^/]+/)?(.*)|\4|') # extracts 'path/to/file' from a standard GitHub URL to call the API
@@ -134,6 +200,11 @@ jobs:
               echo "$FILE download : FAILED (HTTP: $HTTP_CODE, Exit: $EXIT_CODE)"
             fi
           done
+
+
+
+
+
 
           # Step 3: Clean up temporary work files       
           rm -f *.tmp *.temp temp_* # 
