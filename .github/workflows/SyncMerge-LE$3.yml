@@ -489,21 +489,22 @@ jobs:
           # Step 3: Iterate through the merged playlists to analyse using tracking variables for the final summary echos        
           COMMITTED_NAMES=""; COMMITTED_COUNT=0; SKIPPED_NAMES=""; SKIPPED_COUNT=0; SUMMARY_DETAILS=""         
           for FILE in "${FILES[@]}"; do
-            if [ -f "$FILE" ]; then          
-              if [[ -n $(git status --porcelain "$FILE") ]]; then # uses git status to determine if the file state is changed or new (and therefore will be committed)
-                git add "$FILE" # stage only the changed/new files selectively based on the git status check    
+            if [ -f "$FILE" ]; then # path check of merged playlist (e.g. 'sl-le/sl-le-all.m3u')
+              git add "$FILE" # adds file to force Git to track it on first workflow run itself, so that the file moves from 'untracked' to 'staged'
+                if ! git diff --cached --quiet "$FILE"; then # checks if the file in the staging area (index) is actually different from the repo (head)
                 COMMITTED_NAMES+="$(basename "$FILE") " # adds to committed list and gathers metrics
                 COMMITTED_COUNT=$((COMMITTED_COUNT + 1))
                 SIZE=$(stat -c%s "$FILE") 
                 EXTINF=$(grep -c '#EXTINF' "$FILE" || true)
-                SUMMARY_DETAILS+="\n  - $(basename "$FILE") ($SIZE bytes): now has $EXTINF #EXTINF lines"
-              else # if git status is empty, it means the file is clean or unchanged/identical to the one in repo, and will therefore not be committed
+                SUMMARY_DETAILS+="\n  - $(basename "$FILE") ($SIZE bytes): now has $EXTINF #EXTINF lines"               
+              else # means the file is clean or unchanged/identical to the one in repo, and will therefore not be committed
+                git reset "$FILE" > /dev/null 2>&1 # if identical to repo, unstage the file to keep the commit clean
                 SKIPPED_NAMES+="$(basename "$FILE") " # adds to skipped list
                 SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
-                echo "RESULT: No changes found to commit for merged playlist $(basename "$FILE")."                
+                echo "RESULT: No changes found to commit for merged playlist $(basename "$FILE")."  
               fi
             else
-              echo "WARNING: Merged playlist $(basename "$FILE") not found on disk at $(pwd)/$FILE."              
+              echo "WARNING: Merged playlist $(basename "$FILE") not found on disk at $(pwd)/$FILE." 
             fi
           done
 
