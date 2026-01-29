@@ -57,20 +57,17 @@ jobs:
           done
           echo "SUCCESS: JSON configuration validated and loaded into GitHub environment."
       
-      - name: Checkout Destination Branch in Destination Repo
+      - name: Checkout Destination Branch in Download Repo
         uses: actions/checkout@v4
         with:
-          repository: '${{ env.DESTINATION_REPO }}' # specify 'owner/repo' of the destination repo
-          ref: ${{ env.DESTINATION_BRANCH }}  # set the destination branch to checkout
+          repository: '${{ env.DOWNLOAD_REPO }}' # specify 'owner/repo' of the destination repo
+          ref: ${{ env.DOWNLOAD_BRANCH }}  # set the destination branch to checkout
           fetch-depth: 0 # get full history to allow rebasing (recommended for every job that needs to commit and push back)
           persist-credentials: false # REQUIRED if upstream repo is private (see wiki)
-          path: 'destination-branch'
+          path: 'download-branch'
 
       - name: Download Playlists from Source Repos  
         run: |
-          mkdir -p destination-branch/${{ env.DESTINATION_DIR1_PATH }} # creates destination directory if it doesn't already exist
-          mkdir -p destination-branch/${{ env.DESTINATION_DIR2_PATH }} # creates destination directory if it doesn't already exist
-
           # Step 1: Define the playlist array
           LIST=$(cat <<EOF # defines the list of playlists to process in a pipe-separated array (URL|DIR|FILE)
           ${{ env.SOURCE_PLAYLIST1a_URL }}|${{ env.DESTINATION_DIR1_PATH }}|sl-le-1.m3u
@@ -180,7 +177,7 @@ jobs:
       - name: Commit Changes and Push to Destination Branch
         run: |
           # Step 1: Enter destination directory
-          cd destination-branch # changes current working directory to the destination branch    
+          cd download-branch # changes current working directory to the destination branch    
 
           # Step 2: Configure git          
           git config user.name "github-actions[bot]"
@@ -211,8 +208,8 @@ jobs:
             echo "RESULT: No changes found to commit in any of the $SKIPPED_COUNT playlists. Skipping push."
           else
             git commit -m "Automated sync from source" # only commits if a binary or text difference exists, alongwith commit message
-            # git pull origin ${{ env.DESTINATION_BRANCH }} --rebase # rebases pull to ensure local is ahead of remote (enable if facing commit/push failures)
-            git push origin ${{ env.DESTINATION_BRANCH }} # pushes to the destination branch
+            # git pull origin ${{ env.DOWNLOAD_BRANCH }} --rebase # rebases pull to ensure local is ahead of remote (enable if facing commit/push failures)
+            git push origin ${{ env.DOWNLOAD_BRANCH }} # pushes to the destination branch
             echo "------------------------------------------------------------------------------------------------------------------------"
             echo "RESULT: Successfully committed and pushed $COMMITTED_COUNT updated playlist(s)."
             echo -e "Details: $SUMMARY_DETAILS"
@@ -258,14 +255,23 @@ jobs:
           done
           echo "SUCCESS: JSON configuration validated and loaded into GitHub environment."
 
-      - name: Checkout Destination Branch in Destination Repo
+      - name: Checkout Source Branch in Download Repo
         uses: actions/checkout@v4
         with:
-          repository: '${{ env.DESTINATION_REPO }}' # specify 'owner/repo' of the destination repo
-          ref: ${{ env.DESTINATION_BRANCH }}  # set the destination branch to checkout
+          repository: '${{ env.DOWNLOAD_REPO }}' # specify 'owner/repo' of the source repo
+          ref: ${{ env.DOWNLOAD_BRANCH }}  # set the source branch to checkout
           fetch-depth: 0 # get full history to allow rebasing (recommended for every job that needs to commit and push back)
           persist-credentials: false # REQUIRED if upstream repo is private (see wiki)
-          path: 'destination-branch'
+          path: 'download-branch'
+
+      - name: Checkout Destination Branch in Merge Repo
+        uses: actions/checkout@v4
+        with:
+          repository: '${{ env.MERGE_REPO }}' # specify 'owner/repo' of the destination repo
+          ref: ${{ env.MERGE_BRANCH }}  # set the destination branch to checkout
+          fetch-depth: 0 # get full history to allow rebasing (recommended for every job that needs to commit and push back)
+          persist-credentials: false # REQUIRED if upstream repo is private (see wiki)
+          path: 'merge-branch'
 
       - name: Download Artifact with Remote Timestamps Metadata
         uses: actions/download-artifact@v4
@@ -463,7 +469,7 @@ jobs:
 
       - name: Commit Changes and Push Merged Playlists to Destination Branch
         run: |
-          cd destination-branch
+          cd merge-branch
 
           # Step 1: Configure git             
           git config user.name "github-actions[bot]"
@@ -506,8 +512,8 @@ jobs:
             echo "RESULT: No changes found to commit for any merged playlists"
           else
             git commit -m "Auto-updated merged playlists" # only commits if a binary or text difference exists, alongwith commit message
-            # git pull origin ${{ env.DESTINATION_BRANCH }} --rebase # rebases pull to ensure local is ahead of remote (enable if facing commit/push failures)
-            git push origin ${{ env.DESTINATION_BRANCH }} # pushes to the destination branch
+            # git pull origin ${{ env.MERGE_BRANCH }} --rebase # rebases pull to ensure local is ahead of remote (enable if facing commit/push failures)
+            git push origin ${{ env.MERGE_BRANCH }} # pushes to the destination branch
             echo "------------------------------------------------------------------------------------------------------------------------"
             echo "RESULT: Commits were made to $COMMITTED_COUNT merged playlist(s): ${COMMITTED_NAMES:-(none)}"
             echo -e "Details: $SUMMARY_DETAILS"
