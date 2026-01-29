@@ -308,10 +308,10 @@ jobs:
 
               # module: fallback to playlist in repository if current download of an input playlist fails 
               if [ ! -f "$src_path" ]; then # if input playlist is missing (current download failed), uses the existing playlist in the repo for merge process
-                if [ -f "$src" ]; then
+                if [ -f "merge-branch/$dir/$src" ]; then
                   echo "FALLBACK: Current download not found for playlist $src. Using existing previous instance from repository."
-                  mkdir -p "$dir"
-                  cp "$src" "$src_path" # pulls the playlist from repo root into processing directory
+                  mkdir -p "download-branch/$dir"
+                  cp "merge-branch/$dir/$src" "$src_path" # pulls the existing playlist from merge repo into processing directory
                 else
                   echo "SKIPPED: Download failed for playlist $src AND no previous instance found in repository. Skipping file."
                   continue
