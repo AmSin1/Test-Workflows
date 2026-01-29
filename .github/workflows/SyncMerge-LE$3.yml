@@ -460,7 +460,7 @@ jobs:
               mapfile -t FILES_FOR_GROUP < <(grep "^$DIR|" "$PLAYLIST_METADATA" | cut -d'|' -f2) # extracts only the input playlist names belonging to current group, and puts these filenames into an array
               if [ ${#FILES_FOR_GROUP[@]} -gt 0 ]; then # checks if any input playlists for this group were actually found
                   if process_group "$DIR" "$OUTPUT_NAME" "${FILES_FOR_GROUP[@]}"; then # calls the 'process_group' function with the dynamic folder, merged playlist name, and input playlist array
-                      echo "$DIR/$OUTPUT_NAME" >> ../merged_files_to_commit.txt # registers the successfully merged playlist for the commit step
+                      echo "$DIR/$OUTPUT_NAME" >> ./merged_files_to_commit.txt # registers the successfully merged playlist for the commit step
                   else
                       TOTAL_GROUP_FAILURES=$((TOTAL_GROUP_FAILURES + 1)) # increments the global error counter everytime the merge function fails 
                   fi
