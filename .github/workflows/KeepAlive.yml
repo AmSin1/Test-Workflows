@@ -1,5 +1,4 @@
 # This GitHub Action resets the 60-day inactivity timer for the repository, to prevent GitHub from disabling GitHub Actions
-# Uses third party action 'stefanzweifel/git-auto-commit-action@v5'
 # Creates and commits a file named 'keepalive.txt' in the root directory of the default branch of the repository, containing the current UTC date and time
 # Repeats the action as per specified schedule
 
