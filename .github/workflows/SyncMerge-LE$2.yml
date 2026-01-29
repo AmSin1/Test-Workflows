@@ -489,30 +489,28 @@ jobs:
           # Step 3: Iterate through the merged playlists to analyse using tracking variables for the final summary echos        
           COMMITTED_NAMES=""; COMMITTED_COUNT=0; SKIPPED_NAMES=""; SKIPPED_COUNT=0; SUMMARY_DETAILS=""         
           for FILE in "${FILES[@]}"; do
-            FILE_NAME=$(basename "$FILE")
-            if [ -f "$FILE" ]; then       
-              GIT_STATUS=$(git status --porcelain "$FILE") # uses git status to determine the file state
-              if [[ -z "$GIT_STATUS" ]]; then # if git status is empty, it means the file is unchanged/clean
-                SKIPPED_NAMES+="$FILE_NAME " # playlist is identical to the one in the repo and will not be committed; adds to skipped list
-                SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
-                echo "RESULT: No changes found to commit for merged playlist $FILE_NAME."
-              else
-                COMMITTED_NAMES+="$FILE_NAME " # playlist is changed or new and will be committed; adds to committed list and gathers metrics
+            if [ -f "$FILE" ]; then          
+              if [[ -n $(git status --porcelain "$FILE") ]]; then # uses git status to determine if the file state is changed or new (and therefore will be committed)
+                git add "$FILE" # stage only the changed/new files selectively based on the git status check    
+                COMMITTED_NAMES+="$(basename "$FILE") " # adds to committed list and gathers metrics
                 COMMITTED_COUNT=$((COMMITTED_COUNT + 1))
                 SIZE=$(stat -c%s "$FILE") 
                 EXTINF=$(grep -c '#EXTINF' "$FILE" || true)
-                SUMMARY_DETAILS+="\n  - $FILE_NAME ($SIZE bytes): now has $EXTINF #EXTINF lines"
-                git add "$FILE" # stage only the changed/new files selectively based on the git status check         
+                SUMMARY_DETAILS+="\n  - $(basename "$FILE") ($SIZE bytes): now has $EXTINF #EXTINF lines"
+              else # if git status is empty, it means the file is clean or unchanged/identical to the one in repo, and will therefore not be committed
+                SKIPPED_NAMES+="$(basename "$FILE") " # adds to skipped list
+                SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+                echo "RESULT: No changes found to commit for merged playlist $(basename "$FILE")."                
               fi
             else
-              echo "WARNING: Merged playlist $FILE_NAME not found."
+              echo "WARNING: Merged playlist $(basename "$FILE") not found on disk at $(pwd)/$FILE."              
             fi
           done
 
           # Step 4: Commit changes, push to destination branch and echo final commit summaries  
           if git diff --cached --quiet; then # checks if there are any changes
             echo "------------------------------------------------------------------------------------------------------------------------"
-            echo "RESULT: No changes found to commit for any merged playlists"
+            echo "RESULT: No changes found to commit for any merged playlists. Check if files exist at: $(ls -R)"
           else
             git commit -m "Auto-updated merged playlists" # only commits if a binary or text difference exists, alongwith commit message
             # git pull origin ${{ env.MERGE_BRANCH }} --rebase # rebases pull to ensure local is ahead of remote (enable if facing commit/push failures)
