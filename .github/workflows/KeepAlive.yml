@@ -35,6 +35,6 @@ jobs:
           if git diff --staged --quiet; then # checks if there are any changes
             echo "No changes found to commit"
           else
-            git commit -m "Automated keep-alive commit: $(date +'%Y-%m-%d %H:%M:%S')"
+            git commit -m "Automated keep-alive commit: $(date +'%d-%m-%Y')"
             git push origin main # pushes to the destination branch
           fi        
