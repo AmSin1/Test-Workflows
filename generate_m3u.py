@@ -2,30 +2,30 @@ import requests
 
 def write_stream(f, name, url):
     """
-    Handles writing the specific metadata and headers for each stream.
+    Applies the Pipe syntax to the URL to force headers in IPTV players.
     """
-    # Essential headers to bypass Akamai 403 Forbidden errors
-    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-    referer = "https://www.icc-cricket.com"
+    # Essential headers for ICC Akamai streams
+    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    ref = "https://www.icc-cricket.com"
+
+    # Formatting the URL with the Pipe (|) character
+    # Many players use this to identify headers for the specific stream
+    url_with_headers = f"{url}|User-Agent={ua}&Referer={ref}"
 
     f.write(f'#EXTINF:-1 tvg-name="{name}",{name}\n')
     
-    # 1. Headers for VLC and standard IPTV players
-    f.write(f'#EXTVLCOPT:http-user-agent={user_agent}\n')
-    f.write(f'#EXTVLCOPT:http-referrer={referer}\n')
-    
-    # 2. Headers for Kodi/ExoPlayer/Android based players
+    # Redundant KODIPROP tags for Android-based players (ExoPlayer)
     f.write(f'#KODIPROP:inputstream.adaptive.license_type=clearkey\n')
-    f.write(f'#KODIPROP:inputstream.adaptive.user_agent={user_agent}\n')
+    f.write(f'#KODIPROP:inputstream.adaptive.user_agent={ua}\n')
     
-    # 3. The actual Stream URL
-    f.write(f"{url}\n")
+    # The URL including the forced headers
+    f.write(f"{url_with_headers}\n")
 
 def create_m3u():
+    # Using the direct raw link for 2026 ICC manifests
     json_url = "https://github.com/StmpupCricket/extract/raw/main/stream-manifests.json"
     
     try:
-        # Fetching JSON with a User-Agent to avoid being blocked by GitHub's bot protection
         response = requests.get(json_url, headers={"User-Agent": "Mozilla/5.0"})
         data = response.json()
         
@@ -33,21 +33,21 @@ def create_m3u():
         with open("playlist.m3u", "w") as f:
             f.write("#EXTM3U\n")
             
-            # Extracting HLS URLs
+            # Extract HLS (.m3u8) links
             hls_urls = data.get("hls", {}).get("urls", [])
             for i, url in enumerate(hls_urls):
                 if isinstance(url, str) and url.startswith("http"):
                     write_stream(f, f"ICC_HLS_{i+1}", url)
                     count += 1
             
-            # Extracting DASH URLs
+            # Extract DASH (.mpd) links
             dash_urls = data.get("dash", {}).get("urls", [])
             for i, url in enumerate(dash_urls):
                 if isinstance(url, str) and url.startswith("http"):
                     write_stream(f, f"ICC_DASH_{i+1}", url)
                     count += 1
                     
-        print(f"Success: Added {count} channels to playlist.m3u with updated playback headers.")
+        print(f"Success: Generated playlist.m3u with {count} streams using Pipe-Header syntax.")
         
     except Exception as e:
         print(f"Python Error: {e}")
