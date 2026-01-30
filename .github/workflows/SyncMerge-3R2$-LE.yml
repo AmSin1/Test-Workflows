@@ -1,4 +1,4 @@
-name: SyncMerge 3R $ LE 2
+name: SyncMerge 3R2 $ LE
 
 on: 
   workflow_dispatch: # allows manual workflow run from the Actions tab (workflow must be in default branch to work)
