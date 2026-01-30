@@ -1,7 +1,6 @@
 import requests
 
 def create_m3u():
-    # Using the direct raw domain to avoid HTML redirects
     json_url = "https://github.com/StmpupCricket/extract/raw/main/stream-manifests.json"
     
     try:
@@ -11,42 +10,37 @@ def create_m3u():
         with open("playlist.m3u", "w") as f:
             f.write("#EXTM3U\n")
             
-            # Case 1: JSON is a List [{}, {}]
-            if isinstance(data, list):
-                items = data
-            # Case 2: JSON is a Dict {"ch1": {}, "ch2": {}}
-            elif isinstance(data, dict):
-                # If it's a dict, we want the values (the channel info)
-                items = data.values()
-            else:
-                raise ValueError("Unexpected JSON format")
+            # Case 1: JSON is a Dict {"Channel Name": {"url": "...", "clearkey": {...}}}
+            if isinstance(data, dict):
+                for name, content in data.items():
+                    if isinstance(content, dict):
+                        write_entry(f, name, content)
+            
+            # Case 2: JSON is a List [{"name": "...", "url": "..."}]
+            elif isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict):
+                        name = item.get("name", "Unknown Stream")
+                        write_entry(f, name, item)
 
-            for item in items:
-                # This check prevents the 'str' object error
-                if not isinstance(item, dict):
-                    continue
-                
-                name = item.get("name", "Unknown Stream")
-                url = item.get("url", "")
-                keys = item.get("clearkey", {})
-
-                if url:
-                    f.write(f'#EXTINF:-1 tvg-name="{name}",{name}\n')
-                    
-                    if isinstance(keys, dict) and keys:
-                        # Extract the first KID and KEY
-                        kid = list(keys.keys())[0]
-                        key = keys[kid]
-                        f.write("#KODIPROP:inputstream.adaptive.license_type=clearkey\n")
-                        f.write(f"#KODIPROP:inputstream.adaptive.license_key={kid}:{key}\n")
-                    
-                    f.write(f"{url}\n")
-                    
         print("Playlist generated successfully.")
-        
     except Exception as e:
         print(f"Python Error: {e}")
         exit(1)
+
+def write_entry(f, name, content):
+    url = content.get("url", "")
+    keys = content.get("clearkey", {})
+    
+    if url:
+        f.write(f'#EXTINF:-1 tvg-name="{name}",{name}\n')
+        if isinstance(keys, dict) and keys:
+            # Get the first KID and KEY
+            kid = list(keys.keys())[0]
+            key = keys[kid]
+            f.write("#KODIPROP:inputstream.adaptive.license_type=clearkey\n")
+            f.write(f"#KODIPROP:inputstream.adaptive.license_key={kid}:{key}\n")
+        f.write(f"{url}\n")
 
 if __name__ == "__main__":
     create_m3u()
