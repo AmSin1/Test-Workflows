@@ -407,11 +407,12 @@ jobs:
                   # custom spacing and formatting
                   END {
                     if (count > 0) { # custom spacing logic: block_index 0 = first block (no preceding space), block_index > 0 = subsequent blocks (2-line preceding space)
-                      prefix = (idx == 0) ? "" : "\n\n" # if not the first block, prepend 2 empty lines
-                      printf "%s# Playlist from %s : %d stream(s) \n", prefix, src_name, count # add source identifier header
-                      printf "# [last updated %s] \n\n", mod_date # add remote update timestamp for the source playlist + 1-line trail spacing + content
-                      printf "#EXTINF:-1 tvg-id=\"\" tvg-name=\"\" tvg-logo=\"\" group-title=\"\",----●★ %s %s ★●----\n", src_name, mod_date # add block divider
-                      printf "http://0.0.0.0\n%s", file_buf # add dummy url for block divider
+                      prefix = (idx == 0) ? "" : "\n\n" # if not the first block, prepends 2 empty lines
+                      printf "%s# Playlist from %s : %d stream(s) \n", prefix, src_name, count # adds source identifier header
+                      printf "# [last updated %s] \n\n", mod_date # adds remote update timestamp for the source playlist + 1-line trail spacing + content
+                      printf "#EXTINF:-1 tvg-id=\"\" tvg-name=\"\" tvg-logo=\"\" group-title=\"\",----●★ %s %s ★●----\n", src_name, mod_date # adds block divider
+                      RAND_ID=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 8) # generates a randon 8-character string
+                      printf "http://0.0.0.0/$RAND_ID\n%s", file_buf # adds random dummy url for block divider
                     }
                   }                 
                 ' "$src_path" >> "$target" # appends input playlists to the merged playlist using the awk logic
