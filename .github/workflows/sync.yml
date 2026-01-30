@@ -25,11 +25,12 @@ jobs:
       - name: Clone DestRepo and Push
         run: |
           # Configure Git
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.PAT_FG_SYNC }}@github.com/AmSin1/Repo.git
           
           # Clone only the specific branch 'autocreate' from destrepo
-          git clone --branch autocreate https://${PAT}@://github.com{USER}/destrepo.git dest_folder
+          git clone --branch autocopied https://${{ secrets.PAT_FG_SYNC }}@github.com/AmSin1/Repo.git dest_folder
           
           # Move the generated m3u into the cloned folder
           mv playlist.m3u dest_folder/
@@ -39,4 +40,4 @@ jobs:
           git add playlist.m3u
           # Only commit if there are changes to avoid workflow failure
           git diff-index --quiet HEAD || git commit -m "Auto-update playlist.m3u"
-          git push origin autocreate
+          git push origin autocopied
