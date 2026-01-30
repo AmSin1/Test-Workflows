@@ -1,7 +1,7 @@
 import requests
 
 def create_m3u():
-    json_url = "https://github.com"
+    json_url = "https://github.com/StmpupCricket/extract/raw/main/stream-manifests.json"
     
     try:
         response = requests.get(json_url)
