@@ -379,6 +379,7 @@ jobs:
 
                   # pre-processing
                   BEGIN {
+                    srand() # random mumber generator (for use in randomizing dummy ip address in printf later)
                     count=0; tag_buf=""; file_buf=""; found_stream=0; # ignore everything till found_stream tuens 1, then start processing everything
                     if ((getline < tracker) > 0) { # pre-load disk tracker - load existing unique stream URLs into a memory array
                       do { seen[$0] = 1 } while ((getline < tracker) > 0)
@@ -411,7 +412,7 @@ jobs:
                       printf "%s# Playlist from %s : %d stream(s) \n", prefix, src_name, count # adds source identifier header
                       printf "# [last updated %s] \n\n", mod_date # adds remote update timestamp for the source playlist + 1-line trail spacing + content
                       printf "#EXTINF:-1 tvg-id=\"\" tvg-name=\"\" tvg-logo=\"\" group-title=\"\",----●★ %s %s ★●----\n", src_name, mod_date # adds block divider
-                      if(!s++){srand()} printf "http://%d.%d.%d.%d/%d\n%s", rand()*256, rand()*256, rand()*256, rand()*256, rand()*10^8, file_buf # adds random dummy url for block divider
+                      printf "http://%d.%d.%d.%d/%d\n%s", rand()*256, rand()*256, rand()*256, rand()*256, rand()*10^8, file_buf # adds random dummy url for block divider
                     }
                   }                 
                 ' "$src_path" >> "$target" # appends input playlists to the merged playlist using the awk logic
