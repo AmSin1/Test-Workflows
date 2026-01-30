@@ -375,15 +375,15 @@ jobs:
                 fi
 
                 # sub-module: awk function for deduplication and custom formatting
-                awk -v src_name="$src" -v tracker="$TRACKER" -v idx="$block_index" -v mod_date="$LAST_MOD" '
+                awk -v src_name="$src" -v tracker="$TRACKER" -v idx="$block_index" -v mod_date="$LAST_MOD" -v s=$RANDOM '
 
                   # pre-processing
                   BEGIN {
-                    srand() # random mumber generator (for use in randomizing dummy ip address in printf later)
                     count=0; tag_buf=""; file_buf=""; found_stream=0; # ignore everything till found_stream tuens 1, then start processing everything
                     if ((getline < tracker) > 0) { # pre-load disk tracker - load existing unique stream URLs into a memory array
                       do { seen[$0] = 1 } while ((getline < tracker) > 0)
                       close(tracker)
+                    srand(s) # random mumber generator (for use in randomizing dummy ip address in printf later)
                     }
                   } 
 
