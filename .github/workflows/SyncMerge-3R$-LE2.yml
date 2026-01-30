@@ -410,7 +410,7 @@ jobs:
                       prefix = (idx == 0) ? "" : "\n\n" # if not the first block, prepend 2 empty lines
                       printf "%s# Playlist from %s : %d stream(s) \n", prefix, src_name, count # add source identifier header
                       printf "# [last updated %s] \n\n", mod_date # add remote update timestamp for the source playlist + 1-line trail spacing + content
-                      printf "#EXTINF:-1 tvg-id=\"\" tvg-name=\"\" tvg-logo=\"\" group-title=\"\",---●★ %s : %s ★●---\n", src_name, mod_date # add block divider
+                      printf "#EXTINF:-1 tvg-id=\"\" tvg-name=\"\" tvg-logo=\"\" group-title=\"\",----●★ %s %s ★●----\n", src_name, mod_date # add block divider
                       printf "http://0.0.0.0\n%s", file_buf # add dummy url for block divider
                     }
                   }                 
