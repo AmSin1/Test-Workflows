@@ -22,16 +22,21 @@ jobs:
       - name: Run Script
         run: python generate_m3u.py
 
-      - name: Deploy to DestRepo
-        uses: cpina/github-action-push-to-another-repository@main
-        env:
-          API_TOKEN_GITHUB: ${{ secrets.PAT_FG_SYNC }}
-        with:
-          source-directory: '.'
-          destination-github-username: 'AmSin1'
-          destination-repository-name: 'Repo'
-          target-branch: 'autocopied'
-          target-directory: ''
-          user-email: github-actions[bot]@users.noreply.github.com
-          commit-message: 'Update M3U from JSON source'
-          file-selection: 'playlist.m3u'
+      - name: Clone DestRepo and Push
+        run: |
+          # Configure Git
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Clone only the specific branch 'autocreate' from destrepo
+          git clone --branch autocreate https://${PAT}@://github.com{USER}/destrepo.git dest_folder
+          
+          # Move the generated m3u into the cloned folder
+          mv playlist.m3u dest_folder/
+          
+          # Commit and Push
+          cd dest_folder
+          git add playlist.m3u
+          # Only commit if there are changes to avoid workflow failure
+          git diff-index --quiet HEAD || git commit -m "Auto-update playlist.m3u"
+          git push origin autocreate
