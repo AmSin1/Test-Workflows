@@ -25,6 +25,8 @@ jobs:
 
       - name: Get Last Updated Timestamps in IST
         run: |
+          cd download-branch
+          
           # Explicitly list all 7 playlist paths across your 2 folders
           PLAYLISTS=(
             "fc-le/fc-le-1.m3u"
